@@ -6,6 +6,12 @@ const DEFAULT_WORKSPACE = {
     title: 'Midterm Examination',
     date: '2026-11-20T09:00'
   },
+  dailyMatrix: [
+    { id: 1, activity: 'Attend Scheduled Lectures', category: 'Academic', target: '2 Classes', completed: true },
+    { id: 2, activity: 'Review Lecture Slides & Notes', category: 'Self Study', target: '60 Mins', completed: true },
+    { id: 3, activity: 'Practice Problem Solving / Coding', category: 'Skill', target: '45 Mins', completed: false },
+    { id: 4, activity: 'Prepare Upcoming Assignment / Lab', category: 'Task', target: '1 Topic', completed: false }
+  ],
   materials: [
     {
       id: 1,
@@ -58,6 +64,31 @@ const DEFAULT_WORKSPACE = {
   ]
 };
 
+// --- WEB AUDIO API BEEP-BEEP SOUND GENERATOR ---
+const playBeepAlarm = () => {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+    const beepTimes = [0, 0.25, 0.5, 0.85, 1.1, 1.35];
+
+    beepTimes.forEach((offset) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(880, ctx.currentTime + offset); // 880Hz distinct digital beep
+      gain.gain.setValueAtTime(0.25, ctx.currentTime + offset);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.18);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(ctx.currentTime + offset);
+      osc.stop(ctx.currentTime + offset + 0.18);
+    });
+  } catch (err) {
+    console.error('Audio play failed:', err);
+  }
+};
+
 export default function App() {
   // --- AUTHENTICATION STATE ---
   const [currentUser, setCurrentUser] = useState(() => {
@@ -88,6 +119,11 @@ export default function App() {
   const [typeFilter, setTypeFilter] = useState('All');
   const [previewItem, setPreviewItem] = useState(null);
 
+  // Daily Activity Matrix Form State
+  const [matrixTask, setMatrixTask] = useState('');
+  const [matrixCategory, setMatrixCategory] = useState('Academic');
+  const [matrixTarget, setMatrixTarget] = useState('60 Mins');
+
   // Material Form (Add & Edit)
   const [editingMaterialId, setEditingMaterialId] = useState(null);
   const [matCourse, setMatCourse] = useState('');
@@ -114,9 +150,16 @@ export default function App() {
   const [questionText, setQuestionText] = useState('');
   const [replyTexts, setReplyTexts] = useState({});
 
-  // Productivity Tools: Pomodoro, Attendance, CGPA
+  // --- CUSTOM POMODORO TIMER & INTERVAL STATE ---
+  const [focusMinutes, setFocusMinutes] = useState(25);
+  const [breakMinutes, setBreakMinutes] = useState(5);
+  const [totalIntervals, setTotalIntervals] = useState(4);
+  const [currentInterval, setCurrentInterval] = useState(1);
+  const [isBreakMode, setIsBreakMode] = useState(false);
   const [pomoSeconds, setPomoSeconds] = useState(25 * 60);
   const [pomoRunning, setPomoRunning] = useState(false);
+
+  // Productivity Tools: To-Do, Attendance, CGPA
   const [todoList, setTodoList] = useState([
     { id: 1, text: 'Complete CSE-101 Assignment', done: false },
     { id: 2, text: 'Revise Matrix Determinant Notes', done: true }
@@ -146,7 +189,11 @@ export default function App() {
       const res = await fetch('/api/workspace');
       const json = await res.json();
       if (json.success && json.data) {
-        setWorkspace({ ...DEFAULT_WORKSPACE, ...json.data });
+        setWorkspace({
+          ...DEFAULT_WORKSPACE,
+          ...json.data,
+          dailyMatrix: json.data.dailyMatrix || DEFAULT_WORKSPACE.dailyMatrix
+        });
       }
     } catch (err) {
       console.error('Failed to load workspace:', err);
@@ -202,17 +249,52 @@ export default function App() {
     return () => clearInterval(timer);
   }, [workspace.examCountdown]);
 
-  // --- POMODORO TIMER ---
+  // --- CUSTOM POMODORO TIMER WITH INTERVALS & BEEP-BEEP SOUND ---
   useEffect(() => {
     let interval = null;
     if (pomoRunning && pomoSeconds > 0) {
       interval = setInterval(() => setPomoSeconds((s) => s - 1), 1000);
-    } else if (pomoSeconds === 0) {
-      setPomoRunning(false);
-      alert('⏰ 25-minute focus session complete! Take a 5-minute break.');
+    } else if (pomoRunning && pomoSeconds === 0) {
+      playBeepAlarm();
+
+      if (!isBreakMode) {
+        // Focus finished -> check if more intervals remain or switch to Break
+        if (currentInterval < totalIntervals) {
+          setIsBreakMode(true);
+          setPomoSeconds(Math.max(1, Number(breakMinutes)) * 60);
+          alert(`🔔 Beep-Beep! Focus Round ${currentInterval}/${totalIntervals} complete! Starting a ${breakMinutes}-minute break.`);
+        } else {
+          setPomoRunning(false);
+          setCurrentInterval(1);
+          setIsBreakMode(false);
+          setPomoSeconds(Math.max(1, Number(focusMinutes)) * 60);
+          alert(`🎉 Beep-Beep! Congratulations! All ${totalIntervals} Focus Intervals are completed!`);
+        }
+      } else {
+        // Break finished -> start next Focus interval
+        const nextRound = currentInterval + 1;
+        setCurrentInterval(nextRound);
+        setIsBreakMode(false);
+        setPomoSeconds(Math.max(1, Number(focusMinutes)) * 60);
+        alert(`🔔 Beep-Beep! Break is over! Starting Focus Round ${nextRound}/${totalIntervals}.`);
+      }
     }
     return () => clearInterval(interval);
-  }, [pomoRunning, pomoSeconds]);
+  }, [pomoRunning, pomoSeconds, isBreakMode, currentInterval, totalIntervals, focusMinutes, breakMinutes]);
+
+  const applyCustomPomodoroSettings = (e) => {
+    e.preventDefault();
+    const validFocus = Math.max(1, Number(focusMinutes) || 25);
+    const validBreak = Math.max(1, Number(breakMinutes) || 5);
+    const validIntervals = Math.max(1, Number(totalIntervals) || 4);
+    setFocusMinutes(validFocus);
+    setBreakMinutes(validBreak);
+    setTotalIntervals(validIntervals);
+    setPomoRunning(false);
+    setIsBreakMode(false);
+    setCurrentInterval(1);
+    setPomoSeconds(validFocus * 60);
+  };
 
   // --- LOGIN / LOGOUT HANDLERS ---
   const handleLogin = async (e) => {
@@ -269,15 +351,42 @@ export default function App() {
       }
     }
 
-    return { todayName, ongoingClass, nextClass };
+    return { todayName, ongoingClass, nextClass, todaysClasses };
   };
 
-  const { todayName, ongoingClass, nextClass } = getLiveClassStatus();
+  const { todayName, ongoingClass, nextClass, todaysClasses } = getLiveClassStatus();
 
   // --- WHATSAPP SHARE ---
   const shareToWhatsApp = (title, details = '') => {
     const message = `📚 *Varsity Portal Alert*\n📌 *${title}*\n${details}\n🔗 Portal Link: ${window.location.origin}`;
     window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
+  };
+
+  // --- DAILY ACTIVITY MATRIX HANDLERS ---
+  const toggleMatrixItem = (id) => {
+    const updated = (workspace.dailyMatrix || []).map((item) =>
+      item.id === id ? { ...item, completed: !item.completed } : item
+    );
+    saveWorkspace({ ...workspace, dailyMatrix: updated });
+  };
+
+  const handleAddMatrixItem = (e) => {
+    e.preventDefault();
+    if (!matrixTask.trim()) return;
+    const newItem = {
+      id: Date.now(),
+      activity: matrixTask.trim(),
+      category: matrixCategory,
+      target: matrixTarget.trim() || 'Daily',
+      completed: false
+    };
+    saveWorkspace({ ...workspace, dailyMatrix: [...(workspace.dailyMatrix || []), newItem] });
+    setMatrixTask('');
+  };
+
+  const handleDeleteMatrixItem = (id) => {
+    const updated = (workspace.dailyMatrix || []).filter((item) => item.id !== id);
+    saveWorkspace({ ...workspace, dailyMatrix: updated });
   };
 
   // --- MATERIAL UPLOAD, EDIT & DELETE ---
@@ -599,13 +708,17 @@ export default function App() {
     return matchesSearch && matchesType;
   });
 
-  // --- CALCULATE ATTENDANCE & CGPA ---
+  // --- CALCULATE ATTENDANCE, CGPA & DAILY MATRIX EFFICIENCY ---
   const attendancePct = totalClasses > 0 ? ((attendedClasses / totalClasses) * 100).toFixed(1) : '0.0';
   const totalCredits = cgpaCourses.reduce((sum, c) => sum + Number(c.credit || 0), 0);
   const calculatedCGPA =
     totalCredits > 0
       ? (cgpaCourses.reduce((sum, c) => sum + Number(c.credit || 0) * Number(c.gpa || 0), 0) / totalCredits).toFixed(2)
       : '0.00';
+
+  const matrixItems = workspace.dailyMatrix || [];
+  const completedMatrixCount = matrixItems.filter((i) => i.completed).length;
+  const matrixEfficiency = matrixItems.length > 0 ? Math.round((completedMatrixCount / matrixItems.length) * 100) : 0;
 
   // ============================================================================
   // LOGIN SCREEN
@@ -802,9 +915,182 @@ export default function App() {
         </div>
 
         {/* ================================================================= */}
-        {/* TAB 1 & 2: DASHBOARD / MATERIALS HUB (WITH EDIT, PREVIEW & SEARCH)*/}
+        {/* TAB 1: DASHBOARD (SMART DAILY ACTIVITY MATRIX - NO MATERIALS LIST)*/}
         {/* ================================================================= */}
-        {(activeTab === 'dashboard' || activeTab === 'varsity') && (
+        {activeTab === 'dashboard' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            
+            {/* Top Metric Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px' }}>
+              <div onClick={() => setActiveTab('varsity')} style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: '1px solid #334155', cursor: 'pointer' }}>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>📚 Total Course Materials</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#38bdf8', margin: '6px 0' }}>{(workspace.materials || []).length}</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>Click to open Materials Vault →</div>
+              </div>
+
+              <div onClick={() => setActiveTab('routine')} style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: '1px solid #334155', cursor: 'pointer' }}>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>📅 Today's Scheduled Classes</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#10b981', margin: '6px 0' }}>{todaysClasses.length}</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>Day: {todayName} →</div>
+              </div>
+
+              <div onClick={() => setActiveTab('qna')} style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: '1px solid #334155', cursor: 'pointer' }}>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>💬 Active Q&A Discussions</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#c084fc', margin: '6px 0' }}>{(workspace.discussions || []).length}</div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>Click to join forum →</div>
+              </div>
+
+              <div style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>⚡ Daily Matrix Efficiency</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: matrixEfficiency >= 75 ? '#4ade80' : '#eab308', margin: '6px 0' }}>
+                  {matrixEfficiency}%
+                </div>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>{completedMatrixCount} of {matrixItems.length} Daily Goals Done</div>
+              </div>
+            </div>
+
+            {/* SMART DAILY ACTIVITY MATRIX */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
+              
+              {/* Interactive Daily Activity & Habit Matrix */}
+              <div style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                  <div>
+                    <h3 style={{ margin: 0, fontSize: '17px', color: '#38bdf8' }}>📊 Smart Daily Activity Matrix</h3>
+                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>Track daily academic goals & study blocks</span>
+                  </div>
+                  <span style={{ background: '#0f172a', color: '#4ade80', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #334155' }}>
+                    {matrixEfficiency}% Done
+                  </span>
+                </div>
+
+                {/* Add New Matrix Activity (Admin/Editor) */}
+                {canEdit && (
+                  <form onSubmit={handleAddMatrixItem} style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                    <input
+                      value={matrixTask}
+                      onChange={(e) => setMatrixTask(e.target.value)}
+                      placeholder="Add daily activity..."
+                      required
+                      style={{ flex: 1, minWidth: '140px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                    />
+                    <select
+                      value={matrixCategory}
+                      onChange={(e) => setMatrixCategory(e.target.value)}
+                      style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                    >
+                      <option value="Academic">Academic</option>
+                      <option value="Self Study">Self Study</option>
+                      <option value="Skill">Skill</option>
+                      <option value="Task">Task</option>
+                    </select>
+                    <input
+                      value={matrixTarget}
+                      onChange={(e) => setMatrixTarget(e.target.value)}
+                      placeholder="Target (e.g. 1 Hr)"
+                      style={{ width: '95px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                    />
+                    <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                      +
+                    </button>
+                  </form>
+                )}
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {matrixItems.map((item) => (
+                    <div
+                      key={item.id}
+                      style={{
+                        background: '#0f172a',
+                        padding: '10px 12px',
+                        borderRadius: '8px',
+                        border: item.completed ? '1px solid #10b981' : '1px solid #334155',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        gap: '10px'
+                      }}
+                    >
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flex: 1 }}>
+                        <input
+                          type="checkbox"
+                          checked={item.completed}
+                          onChange={() => toggleMatrixItem(item.id)}
+                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                        />
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: '500', textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? '#64748b' : '#f8fafc' }}>
+                            {item.activity}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                            <span style={{ color: '#38bdf8' }}>{item.category}</span> • Target: {item.target}
+                          </div>
+                        </div>
+                      </label>
+
+                      {canEdit && (
+                        <button
+                          onClick={() => handleDeleteMatrixItem(item.id)}
+                          style={{ background: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Today's Class Timeline & Recent Portal Activity Feed */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <div style={{ background: '#1e293b', padding: '18px', borderRadius: '12px', border: '1px solid #334155' }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: '16px', color: '#10b981' }}>🕒 Today's Class Timeline ({todayName})</h3>
+                  {todaysClasses.length === 0 ? (
+                    <div style={{ fontSize: '13px', color: '#94a3b8' }}>No classes scheduled for today. Great day for self-study!</div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {todaysClasses.map((c) => (
+                        <div key={c.id} style={{ background: '#0f172a', padding: '10px 12px', borderRadius: '8px', borderLeft: '3px solid #38bdf8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div>
+                            <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{c.course} • {c.room}</div>
+                            <div style={{ fontSize: '12px', color: '#94a3b8' }}>{c.teacher}</div>
+                          </div>
+                          <span style={{ fontFamily: 'monospace', fontSize: '12px', background: '#1e293b', padding: '4px 8px', borderRadius: '6px', color: '#38bdf8' }}>
+                            {c.startTime} - {c.endTime}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ background: '#1e293b', padding: '18px', borderRadius: '12px', border: '1px solid #334155' }}>
+                  <h3 style={{ margin: '0 0 12px', fontSize: '16px', color: '#c084fc' }}>⚡ Latest Portal Updates</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
+                    {(workspace.materials || []).slice(0, 2).map((m) => (
+                      <div key={m.id} onClick={() => setActiveTab('varsity')} style={{ background: '#0f172a', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>📄 <strong>{m.course}:</strong> {m.title}</span>
+                        <span style={{ color: '#38bdf8', fontSize: '11px' }}>View in Materials →</span>
+                      </div>
+                    ))}
+                    {(workspace.blogs || []).slice(0, 1).map((b) => (
+                      <div key={b.id} onClick={() => setActiveTab('blog')} style={{ background: '#0f172a', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
+                        <span>📝 <strong>Notice:</strong> {b.title}</span>
+                        <span style={{ color: '#10b981', fontSize: '11px' }}>Read →</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* ================================================================= */}
+        {/* TAB 2: MATERIALS HUB (ONLY IN MATERIALS TAB)                      */}
+        {/* ================================================================= */}
+        {activeTab === 'varsity' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
             {/* Upload / Edit Material Form (Admin/Editor) */}
@@ -1025,23 +1311,61 @@ export default function App() {
         )}
 
         {/* ================================================================= */}
-        {/* TAB 4: PRODUCTIVITY TOOLS (POMODORO, ATTENDANCE, CGPA)            */}
+        {/* TAB 4: PRODUCTIVITY TOOLS (CUSTOM POMODORO WITH BEEP, ATT, CGPA)  */}
         {/* ================================================================= */}
         {activeTab === 'tools' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: '20px' }}>
             
-            {/* Pomodoro Focus Timer & To-Do */}
+            {/* Custom Pomodoro Timer with Intervals & Beep-Beep Sound */}
             <div style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-              <h3 style={{ margin: '0 0 10px', color: '#f43f5e' }}>🍅 Focus Study Timer (Pomodoro)</h3>
-              <div style={{ fontSize: '42px', fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'center', margin: '16px 0', background: '#0f172a', padding: '16px', borderRadius: '10px', border: '1px solid #334155' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h3 style={{ margin: 0, color: '#f43f5e' }}>🍅 Custom Pomodoro Timer</h3>
+                <span style={{ background: isBreakMode ? '#10b981' : '#3b82f6', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}>
+                  {isBreakMode ? '☕ Break Time' : '🔥 Focus Mode'} • Round {currentInterval}/{totalIntervals}
+                </span>
+              </div>
+
+              {/* Custom Timer & Interval Configuration */}
+              <form onSubmit={applyCustomPomodoroSettings} style={{ background: '#0f172a', padding: '10px', borderRadius: '8px', border: '1px solid #334155', marginBottom: '12px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', alignItems: 'end' }}>
+                <div>
+                  <label style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>Focus (Min)</label>
+                  <input type="number" min="1" max="180" value={focusMinutes} onChange={(e) => setFocusMinutes(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '5px', borderRadius: '4px', fontSize: '12px' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>Break (Min)</label>
+                  <input type="number" min="1" max="60" value={breakMinutes} onChange={(e) => setBreakMinutes(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '5px', borderRadius: '4px', fontSize: '12px' }} />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>Intervals</label>
+                  <input type="number" min="1" max="20" value={totalIntervals} onChange={(e) => setTotalIntervals(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '5px', borderRadius: '4px', fontSize: '12px' }} />
+                </div>
+                <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                  Set
+                </button>
+              </form>
+
+              {/* Countdown Display */}
+              <div style={{ fontSize: '42px', fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'center', margin: '12px 0', background: '#0f172a', padding: '14px', borderRadius: '10px', border: isBreakMode ? '1px solid #10b981' : '1px solid #334155', color: isBreakMode ? '#4ade80' : '#f8fafc' }}>
                 {String(Math.floor(pomoSeconds / 60)).padStart(2, '0')}:{String(pomoSeconds % 60).padStart(2, '0')}
               </div>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginBottom: '20px' }}>
-                <button onClick={() => setPomoRunning(!pomoRunning)} style={{ background: pomoRunning ? '#eab308' : '#10b981', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold' }}>
-                  {pomoRunning ? '⏸️ Pause' : '▶️ Start 25m Focus'}
+
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '18px', flexWrap: 'wrap' }}>
+                <button onClick={() => setPomoRunning(!pomoRunning)} style={{ background: pomoRunning ? '#eab308' : '#10b981', color: pomoRunning ? '#000' : '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+                  {pomoRunning ? '⏸️ Pause' : '▶️ Start Timer'}
                 </button>
-                <button onClick={() => { setPomoRunning(false); setPomoSeconds(25 * 60); }} style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 18px', borderRadius: '8px', cursor: 'pointer' }}>
+                <button
+                  onClick={() => {
+                    setPomoRunning(false);
+                    setIsBreakMode(false);
+                    setCurrentInterval(1);
+                    setPomoSeconds(Math.max(1, Number(focusMinutes)) * 60);
+                  }}
+                  style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}
+                >
                   🔄 Reset
+                </button>
+                <button onClick={playBeepAlarm} title="Test Beep-Beep Sound" style={{ background: '#334155', color: '#38bdf8', border: '1px solid #475569', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                  🔊 Test Beep
                 </button>
               </div>
 
