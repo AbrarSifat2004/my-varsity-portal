@@ -50,9 +50,9 @@ if (!adminCheck) {
     );
 }
 
-const userCheck = db.prepare('SELECT * FROM users WHERE username = ?').get('varsity_user');
+const userCheck = db.prepare('SELECT * FROM users WHERE username = ?').get('B54SC');
 if (!userCheck) {
-    const hashedPass = bcrypt.hashSync('user123', 10);
+    const hashedPass = bcrypt.hashSync('@ust', 10);
     db.prepare('INSERT INTO users (username, password, name, role, permissions, access_type) VALUES (?, ?, ?, ?, ?, ?)').run(
         'varsity_user', hashedPass, 'Varsity Student', 'user', 'varsity,routine,blog', 'view'
     );
