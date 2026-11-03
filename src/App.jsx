@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from 'react';
 
 const DEFAULT_WORKSPACE = {
-  pinnedNotice: '📢 Midterm examinations will start next Sunday! Please check the updated routine and course materials.',
+  pinnedNotice: '📢 Midterm examinations will start next Sunday! Please check the updated exam schedule and course materials.',
   examCountdown: {
     title: 'Midterm Examination',
     date: '2026-11-20T09:00'
   },
+  notifications: [
+    { id: 1, title: 'Exam Schedule Updated', text: 'New exam slots for CSE-101 and MAT-102 have been added.', time: '10:00 AM', read: false },
+    { id: 2, title: 'New Material Uploaded', text: 'Introduction to Programming lecture slide is now available.', time: 'Yesterday', read: true }
+  ],
   dailyMatrix: [
-    { id: 1, activity: 'Attend Scheduled Lectures', category: 'Academic', target: '2 Classes', completed: true },
+    { id: 1, activity: 'Prepare Exam Syllabus Topics', category: 'Academic', target: '2 Topics', completed: true },
     { id: 2, activity: 'Review Lecture Slides & Notes', category: 'Self Study', target: '60 Mins', completed: true },
-    { id: 3, activity: 'Practice Problem Solving / Coding', category: 'Skill', target: '45 Mins', completed: false },
-    { id: 4, activity: 'Prepare Upcoming Assignment / Lab', category: 'Task', target: '1 Topic', completed: false }
+    { id: 3, activity: 'Practice Problem Solving / Coding', category: 'Skill', target: '45 Mins', completed: false }
   ],
   materials: [
     {
@@ -35,12 +38,8 @@ const DEFAULT_WORKSPACE = {
     }
   ],
   routines: [
-    { id: 1, day: 'Sunday', startTime: '09:00', endTime: '10:30', course: 'CSE-101', room: 'Room 402', teacher: 'Dr. Rahman' },
-    { id: 2, day: 'Sunday', startTime: '11:00', endTime: '12:30', course: 'MAT-102', room: 'Room 305', teacher: 'Prof. Karim' },
-    { id: 3, day: 'Monday', startTime: '10:00', endTime: '11:30', course: 'PHY-103', room: 'Lab 201', teacher: 'Mr. Hasan' },
-    { id: 4, day: 'Tuesday', startTime: '09:00', endTime: '10:30', course: 'CSE-101', room: 'Room 402', teacher: 'Dr. Rahman' },
-    { id: 5, day: 'Wednesday', startTime: '11:00', endTime: '12:30', course: 'ENG-101', room: 'Room 104', teacher: 'Ms. Nadia' },
-    { id: 6, day: 'Thursday', startTime: '09:30', endTime: '11:00', course: 'MAT-102', room: 'Room 305', teacher: 'Prof. Karim' }
+    { id: 1, date: '2026-11-20', startTime: '09:00', endTime: '11:00', course: 'CSE-101', room: 'Room 402', syllabus: 'Modules 1 to 3' },
+    { id: 2, date: '2026-11-22', startTime: '10:00', endTime: '12:00', course: 'MAT-102', room: 'Room 305', syllabus: 'Matrices & Determinants' }
   ],
   blogs: [
     {
@@ -48,17 +47,17 @@ const DEFAULT_WORKSPACE = {
       title: 'Midterm Examination Preparation Guidelines',
       author: 'Master Admin',
       date: '2026-11-02',
-      content: 'All students are requested to review the lecture sheets thoroughly. If you have any doubts or questions, feel free to post them in the Q&A Forum.'
+      content: 'All students are requested to review the lecture sheets thoroughly. Check the Exam Schedule tab for exact dates and syllabus.'
     }
   ],
   discussions: [
     {
       id: 1,
       author: 'B54SC',
-      text: 'Sir, has the 2nd lecture sheet on Matrix Determinants been uploaded yet?',
+      text: 'Sir, what is the exact syllabus for the MAT-102 exam?',
       time: '10:30 AM',
       replies: [
-        { id: 101, author: 'admin', text: 'Yes, just search for MAT-102 in the Materials section.', time: '10:45 AM' }
+        { id: 101, author: 'admin', text: 'Please check the Exam Schedule tab, syllabus details are listed there.', time: '10:45 AM' }
       ]
     }
   ]
@@ -76,7 +75,7 @@ const playBeepAlarm = () => {
       const osc = ctx.createOscillator();
       const gain = ctx.createGain();
       osc.type = 'square';
-      osc.frequency.setValueAtTime(880, ctx.currentTime + offset); // 880Hz distinct digital beep
+      osc.frequency.setValueAtTime(880, ctx.currentTime + offset);
       gain.gain.setValueAtTime(0.25, ctx.currentTime + offset);
       gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + offset + 0.18);
       osc.connect(gain);
@@ -103,6 +102,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState('dashboard');
   const [workspace, setWorkspace] = useState(DEFAULT_WORKSPACE);
   const [syncStatus, setSyncStatus] = useState('Synced ✅');
+
+  // --- NOTIFICATION DROPDOWN STATE ---
+  const [showNotifications, setShowNotifications] = useState(false);
 
   // --- ADMIN USER MANAGEMENT STATE ---
   const [usersList, setUsersList] = useState([]);
@@ -132,14 +134,14 @@ export default function App() {
   const [matUrl, setMatUrl] = useState('');
   const [matFile, setMatFile] = useState(null);
 
-  // Routine Form (Add & Edit)
+  // Exam Schedule Form (Add & Edit)
   const [editingRoutineId, setEditingRoutineId] = useState(null);
-  const [rtDay, setRtDay] = useState('Sunday');
+  const [rtDate, setRtDate] = useState(new Date().toISOString().slice(0, 10));
   const [rtStart, setRtStart] = useState('09:00');
-  const [rtEnd, setRtEnd] = useState('10:30');
+  const [rtEnd, setRtEnd] = useState('11:00');
   const [rtCourse, setRtCourse] = useState('');
   const [rtRoom, setRtRoom] = useState('');
-  const [rtTeacher, setRtTeacher] = useState('');
+  const [rtSyllabus, setRtSyllabus] = useState('');
 
   // Blog Form (Add & Edit)
   const [editingBlogId, setEditingBlogId] = useState(null);
@@ -150,7 +152,7 @@ export default function App() {
   const [questionText, setQuestionText] = useState('');
   const [replyTexts, setReplyTexts] = useState({});
 
-  // --- CUSTOM POMODORO TIMER & INTERVAL STATE ---
+  // --- CUSTOM POMODORO TIMER STATE ---
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [breakMinutes, setBreakMinutes] = useState(5);
   const [totalIntervals, setTotalIntervals] = useState(4);
@@ -192,7 +194,8 @@ export default function App() {
         setWorkspace({
           ...DEFAULT_WORKSPACE,
           ...json.data,
-          dailyMatrix: json.data.dailyMatrix || DEFAULT_WORKSPACE.dailyMatrix
+          dailyMatrix: json.data.dailyMatrix || DEFAULT_WORKSPACE.dailyMatrix,
+          notifications: json.data.notifications || DEFAULT_WORKSPACE.notifications
         });
       }
     } catch (err) {
@@ -258,7 +261,6 @@ export default function App() {
       playBeepAlarm();
 
       if (!isBreakMode) {
-        // Focus finished -> check if more intervals remain or switch to Break
         if (currentInterval < totalIntervals) {
           setIsBreakMode(true);
           setPomoSeconds(Math.max(1, Number(breakMinutes)) * 60);
@@ -271,7 +273,6 @@ export default function App() {
           alert(`🎉 Beep-Beep! Congratulations! All ${totalIntervals} Focus Intervals are completed!`);
         }
       } else {
-        // Break finished -> start next Focus interval
         const nextRound = currentInterval + 1;
         setCurrentInterval(nextRound);
         setIsBreakMode(false);
@@ -325,37 +326,6 @@ export default function App() {
     setLoginPassword('');
   };
 
-  // --- SMART ROUTINE: "NOW & UP NEXT" CALCULATOR ---
-  const getLiveClassStatus = () => {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const todayName = days[currentTime.getDay()];
-    const nowMinutes = currentTime.getHours() * 60 + currentTime.getMinutes();
-
-    const todaysClasses = (workspace.routines || [])
-      .filter((r) => r.day.toLowerCase() === todayName.toLowerCase())
-      .sort((a, b) => a.startTime.localeCompare(b.startTime));
-
-    let ongoingClass = null;
-    let nextClass = null;
-
-    for (const cls of todaysClasses) {
-      const [sh, sm] = cls.startTime.split(':').map(Number);
-      const [eh, em] = cls.endTime.split(':').map(Number);
-      const startMin = sh * 60 + sm;
-      const endMin = eh * 60 + em;
-
-      if (nowMinutes >= startMin && nowMinutes <= endMin) {
-        ongoingClass = cls;
-      } else if (nowMinutes < startMin && !nextClass) {
-        nextClass = cls;
-      }
-    }
-
-    return { todayName, ongoingClass, nextClass, todaysClasses };
-  };
-
-  const { todayName, ongoingClass, nextClass, todaysClasses } = getLiveClassStatus();
-
   // --- WHATSAPP SHARE ---
   const shareToWhatsApp = (title, details = '') => {
     const message = `📚 *Varsity Portal Alert*\n📌 *${title}*\n${details}\n🔗 Portal Link: ${window.location.origin}`;
@@ -404,8 +374,9 @@ export default function App() {
     e.preventDefault();
     if (!matCourse.trim() || !matTitle.trim()) return;
 
+    let updatedMaterials;
     if (editingMaterialId) {
-      const updatedMaterials = (workspace.materials || []).map((m) => {
+      updatedMaterials = (workspace.materials || []).map((m) => {
         if (m.id === editingMaterialId) {
           return {
             ...m,
@@ -419,7 +390,6 @@ export default function App() {
         }
         return m;
       });
-      saveWorkspace({ ...workspace, materials: updatedMaterials });
       setEditingMaterialId(null);
     } else {
       const newMat = {
@@ -432,9 +402,20 @@ export default function App() {
         fileData: matFile ? matFile.data : '',
         externalUrl: matUrl.trim()
       };
-      saveWorkspace({ ...workspace, materials: [newMat, ...(workspace.materials || [])] });
+      updatedMaterials = [newMat, ...(workspace.materials || [])];
+
+      // Add Notification
+      const newNotif = { id: Date.now(), title: 'New Material Published', text: `${matCourse}: ${matTitle}`, time: 'Just now', read: false };
+      saveWorkspace({ ...workspace, materials: updatedMaterials, notifications: [newNotif, ...(workspace.notifications || [])] });
+      setMatCourse('');
+      setMatTitle('');
+      setMatType('PDF');
+      setMatUrl('');
+      setMatFile(null);
+      return;
     }
 
+    saveWorkspace({ ...workspace, materials: updatedMaterials });
     setMatCourse('');
     setMatTitle('');
     setMatType('PDF');
@@ -460,59 +441,68 @@ export default function App() {
     });
   };
 
-  // --- ROUTINE ADD, EDIT & DELETE ---
+  // --- EXAM SCHEDULE ADD, EDIT & DELETE ---
   const handleSaveRoutine = (e) => {
     e.preventDefault();
     if (!rtCourse.trim()) return;
 
+    let updatedRoutines;
     if (editingRoutineId) {
-      const updatedRoutines = (workspace.routines || []).map((r) => {
+      updatedRoutines = (workspace.routines || []).map((r) => {
         if (r.id === editingRoutineId) {
           return {
             ...r,
-            day: rtDay,
+            date: rtDate,
             startTime: rtStart,
             endTime: rtEnd,
             course: rtCourse.trim().toUpperCase(),
             room: rtRoom.trim() || 'TBA',
-            teacher: rtTeacher.trim() || 'Faculty'
+            syllabus: rtSyllabus.trim() || 'General'
           };
         }
         return r;
       });
-      saveWorkspace({ ...workspace, routines: updatedRoutines });
       setEditingRoutineId(null);
     } else {
       const newRt = {
         id: Date.now(),
-        day: rtDay,
+        date: rtDate,
         startTime: rtStart,
         endTime: rtEnd,
         course: rtCourse.trim().toUpperCase(),
         room: rtRoom.trim() || 'TBA',
-        teacher: rtTeacher.trim() || 'Faculty'
+        syllabus: rtSyllabus.trim() || 'General'
       };
-      saveWorkspace({ ...workspace, routines: [...(workspace.routines || []), newRt] });
+      updatedRoutines = [...(workspace.routines || []), newRt];
+
+      // Add Notification for Exam Slot
+      const newNotif = { id: Date.now(), title: 'Exam Slot Added', text: `${rtCourse.toUpperCase()} exam scheduled on ${rtDate}`, time: 'Just now', read: false };
+      saveWorkspace({ ...workspace, routines: updatedRoutines, notifications: [newNotif, ...(workspace.notifications || [])] });
+      setRtCourse('');
+      setRtRoom('');
+      setRtSyllabus('');
+      return;
     }
 
+    saveWorkspace({ ...workspace, routines: updatedRoutines });
     setRtCourse('');
     setRtRoom('');
-    setRtTeacher('');
+    setRtSyllabus('');
   };
 
   const startEditRoutine = (r) => {
     setEditingRoutineId(r.id);
-    setRtDay(r.day);
+    setRtDate(r.date || new Date().toISOString().slice(0, 10));
     setRtStart(r.startTime);
     setRtEnd(r.endTime);
     setRtCourse(r.course);
     setRtRoom(r.room);
-    setRtTeacher(r.teacher);
+    setRtSyllabus(r.syllabus || '');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   const handleDeleteRoutine = (id) => {
-    if (!window.confirm('Delete this class slot from the routine?')) return;
+    if (!window.confirm('Delete this exam slot from the schedule?')) return;
     saveWorkspace({
       ...workspace,
       routines: workspace.routines.filter((r) => r.id !== id)
@@ -704,21 +694,34 @@ export default function App() {
     const matchesSearch =
       item.course.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = typeFilter === 'All' || item.type === typeFilter;
+    const matchesType = typeFilter === 'All' || item.type === item.type;
     return matchesSearch && matchesType;
   });
-
-  // --- CALCULATE ATTENDANCE, CGPA & DAILY MATRIX EFFICIENCY ---
-  const attendancePct = totalClasses > 0 ? ((attendedClasses / totalClasses) * 100).toFixed(1) : '0.0';
-  const totalCredits = cgpaCourses.reduce((sum, c) => sum + Number(c.credit || 0), 0);
-  const calculatedCGPA =
-    totalCredits > 0
-      ? (cgpaCourses.reduce((sum, c) => sum + Number(c.credit || 0) * Number(c.gpa || 0), 0) / totalCredits).toFixed(2)
-      : '0.00';
 
   const matrixItems = workspace.dailyMatrix || [];
   const completedMatrixCount = matrixItems.filter((i) => i.completed).length;
   const matrixEfficiency = matrixItems.length > 0 ? Math.round((completedMatrixCount / matrixItems.length) * 100) : 0;
+  const unreadNotifCount = (workspace.notifications || []).filter((n) => !n.read).length;
+
+  // Mark notifications as read
+  const handleOpenNotifications = () => {
+    setShowNotifications(!showNotifications);
+    if (!showNotifications && unreadNotifCount > 0) {
+      const updated = (workspace.notifications || []).map((n) => ({ ...n, read: true }));
+      saveWorkspace({ ...workspace, notifications: updated });
+    }
+  };
+
+  // --- SMART CALENDAR GENERATOR HELPER ---
+  const [calendarDate, setCalendarDate] = useState(new Date());
+  const year = calendarDate.getFullYear();
+  const month = calendarDate.getMonth();
+  const firstDayOfMonth = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+  // Set of exam dates formatted as 'YYYY-MM-DD'
+  const examDatesSet = new Set((workspace.routines || []).map((r) => r.date));
 
   // ============================================================================
   // LOGIN SCREEN
@@ -792,41 +795,82 @@ export default function App() {
           </div>
         </div>
 
-        {/* Navigation Tabs */}
-        <nav style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-          {[
-            { id: 'dashboard', label: '🏠 Dashboard' },
-            { id: 'varsity', label: '📚 Materials' },
-            { id: 'routine', label: '📅 Smart Routine' },
-            { id: 'tools', label: '🍅 Study Tools' },
-            { id: 'qna', label: '💬 Q&A Forum' },
-            { id: 'blog', label: '📝 Notice/Blog' },
-            ...(isAdmin ? [{ id: 'admin', label: '🛡️ User Control' }] : [])
-          ].map((tab) => (
+        {/* Navigation Tabs & Notification Bell */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+          <nav style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+            {[
+              { id: 'dashboard', label: '🏠 Dashboard' },
+              { id: 'varsity', label: '📚 Materials' },
+              { id: 'routine', label: '📅 Exam Schedule' },
+              { id: 'tools', label: '🍅 Study Tools' },
+              { id: 'qna', label: '💬 Q&A Forum' },
+              { id: 'blog', label: '📝 Notice/Blog' },
+              ...(isAdmin ? [{ id: 'admin', label: '🛡️ User Control' }] : [])
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                style={{
+                  background: activeTab === tab.id ? '#3b82f6' : '#1e293b',
+                  color: '#fff',
+                  border: '1px solid #334155',
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: activeTab === tab.id ? 'bold' : 'normal'
+                }}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </nav>
+
+          {/* Notification Bell Icon */}
+          <div style={{ position: 'relative' }}>
             <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              style={{
-                background: activeTab === tab.id ? '#3b82f6' : '#1e293b',
-                color: '#fff',
-                border: '1px solid #334155',
-                padding: '8px 12px',
-                borderRadius: '8px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                fontWeight: activeTab === tab.id ? 'bold' : 'normal'
-              }}
+              onClick={handleOpenNotifications}
+              style={{ background: '#1e293b', border: '1px solid #334155', color: '#fff', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '15px', position: 'relative' }}
             >
-              {tab.label}
+              🔔
+              {unreadNotifCount > 0 && (
+                <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#ef4444', color: '#fff', fontSize: '10px', padding: '2px 5px', borderRadius: '10px', fontWeight: 'bold' }}>
+                  {unreadNotifCount}
+                </span>
+              )}
             </button>
-          ))}
+
+            {/* Notification Dropdown Panel */}
+            {showNotifications && (
+              <div style={{ position: 'absolute', right: 0, top: '42px', width: '300px', background: '#1e293b', border: '1px solid #334155', borderRadius: '12px', boxShadow: '0 10px 25px rgba(0,0,0,0.5)', zIndex: 1000, padding: '12px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', borderBottom: '1px solid #334155', paddingBottom: '6px' }}>
+                  <strong style={{ fontSize: '14px', color: '#38bdf8' }}>Notifications</strong>
+                  <span style={{ fontSize: '11px', color: '#94a3b8' }}>{(workspace.notifications || []).length} total</span>
+                </div>
+                <div style={{ maxHeight: '250px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {(workspace.notifications || []).length === 0 ? (
+                    <div style={{ fontSize: '12px', color: '#94a3b8', textAlign: 'center', padding: '10px' }}>No new notifications</div>
+                  ) : (
+                    (workspace.notifications || []).map((n) => (
+                      <div key={n.id} style={{ background: '#0f172a', padding: '8px 10px', borderRadius: '6px', borderLeft: '3px solid #3b82f6', fontSize: '12px' }}>
+                        <div style={{ fontWeight: 'bold', color: '#f8fafc' }}>{n.title}</div>
+                        <div style={{ color: '#94a3b8', margin: '2px 0' }}>{n.text}</div>
+                        <div style={{ fontSize: '10px', color: '#64748b', textAlign: 'right' }}>{n.time}</div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <button
             onClick={handleLogout}
             style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 'bold' }}
           >
             Logout
           </button>
-        </nav>
+        </div>
       </header>
 
       <main style={{ maxWidth: '1200px', margin: '0 auto', padding: '20px 16px' }}>
@@ -887,208 +931,166 @@ export default function App() {
           )}
         </div>
 
-        {/* "NOW & UP NEXT" LIVE CLASS HIGHLIGHTER */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px', marginBottom: '24px' }}>
-          <div style={{ background: '#1e293b', border: '1px solid #10b981', borderRadius: '12px', padding: '14px' }}>
-            <div style={{ fontSize: '12px', color: '#10b981', fontWeight: 'bold', marginBottom: '4px' }}>🟢 NOW RUNNING ({todayName})</div>
-            {ongoingClass ? (
-              <div>
-                <div style={{ fontSize: '17px', fontWeight: 'bold' }}>{ongoingClass.course} ({ongoingClass.room})</div>
-                <div style={{ fontSize: '13px', color: '#94a3b8' }}>{ongoingClass.startTime} - {ongoingClass.endTime} • {ongoingClass.teacher}</div>
-              </div>
-            ) : (
-              <div style={{ fontSize: '14px', color: '#94a3b8' }}>No class is currently running right now.</div>
-            )}
-          </div>
-
-          <div style={{ background: '#1e293b', border: '1px solid #38bdf8', borderRadius: '12px', padding: '14px' }}>
-            <div style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 'bold', marginBottom: '4px' }}>⏭️ UP NEXT TODAY</div>
-            {nextClass ? (
-              <div>
-                <div style={{ fontSize: '17px', fontWeight: 'bold' }}>{nextClass.course} ({nextClass.room})</div>
-                <div style={{ fontSize: '13px', color: '#94a3b8' }}>Starts at {nextClass.startTime} • {nextClass.teacher}</div>
-              </div>
-            ) : (
-              <div style={{ fontSize: '14px', color: '#94a3b8' }}>No more classes scheduled for today! 🎉</div>
-            )}
-          </div>
-        </div>
-
         {/* ================================================================= */}
-        {/* TAB 1: DASHBOARD (SMART DAILY ACTIVITY MATRIX - NO MATERIALS LIST)*/}
+        {/* TAB 1: DASHBOARD (CLOCK, SMART CALENDAR & ACTIVITY MATRIX)        */}
         {/* ================================================================= */}
         {activeTab === 'dashboard' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
-            {/* Top Metric Cards */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px' }}>
-              <div onClick={() => setActiveTab('varsity')} style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: '1px solid #334155', cursor: 'pointer' }}>
-                <div style={{ fontSize: '12px', color: '#94a3b8' }}>📚 Total Course Materials</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#38bdf8', margin: '6px 0' }}>{(workspace.materials || []).length}</div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>Click to open Materials Vault →</div>
-              </div>
-
-              <div onClick={() => setActiveTab('routine')} style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: '1px solid #334155', cursor: 'pointer' }}>
-                <div style={{ fontSize: '12px', color: '#94a3b8' }}>📅 Today's Scheduled Classes</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#10b981', margin: '6px 0' }}>{todaysClasses.length}</div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>Day: {todayName} →</div>
-              </div>
-
-              <div onClick={() => setActiveTab('qna')} style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: '1px solid #334155', cursor: 'pointer' }}>
-                <div style={{ fontSize: '12px', color: '#94a3b8' }}>💬 Active Q&A Discussions</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#c084fc', margin: '6px 0' }}>{(workspace.discussions || []).length}</div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>Click to join forum →</div>
-              </div>
-
-              <div style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: '1px solid #334155' }}>
-                <div style={{ fontSize: '12px', color: '#94a3b8' }}>⚡ Daily Matrix Efficiency</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: matrixEfficiency >= 75 ? '#4ade80' : '#eab308', margin: '6px 0' }}>
-                  {matrixEfficiency}%
+            {/* Top Widget Row: Live Clock & Smart Calendar */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px' }}>
+              
+              {/* Digital Live Clock Widget */}
+              <div style={{ background: 'linear-gradient(135deg, #1e293b, #0f172a)', padding: '20px', borderRadius: '14px', border: '1px solid #334155', textAlign: 'center', display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center' }}>
+                <div style={{ fontSize: '12px', color: '#38bdf8', fontWeight: 'bold', letterSpacing: '1px', marginBottom: '8px' }}>🕒 LIVE SYSTEM CLOCK</div>
+                <div style={{ fontSize: '38px', fontWeight: 'bold', fontFamily: 'monospace', color: '#f8fafc', letterSpacing: '2px' }}>
+                  {currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 </div>
-                <div style={{ fontSize: '11px', color: '#64748b' }}>{completedMatrixCount} of {matrixItems.length} Daily Goals Done</div>
+                <div style={{ fontSize: '14px', color: '#94a3b8', marginTop: '6px' }}>
+                  {currentTime.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                </div>
               </div>
+
+              {/* Smart Calendar Widget (Exam dates marked in RED) */}
+              <div style={{ background: '#1e293b', padding: '16px', borderRadius: '14px', border: '1px solid #334155' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <button onClick={() => setCalendarDate(new Date(year, month - 1, 1))} style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}>◀</button>
+                  <strong style={{ fontSize: '14px', color: '#38bdf8' }}>{monthNames[month]} {year}</strong>
+                  <button onClick={() => setCalendarDate(new Date(year, month + 1, 1))} style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '4px 8px', borderRadius: '6px', cursor: 'pointer' }}>▶</button>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', textAlign: 'center', fontSize: '11px', color: '#94a3b8', marginBottom: '6px', fontWeight: 'bold' }}>
+                  <span>Su</span><span>Mo</span><span>Tu</span><span>We</span><span>Th</span><span>Fr</span><span>Sa</span>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', textAlign: 'center', fontSize: '12px' }}>
+                  {Array.from({ length: firstDayOfMonth }).map((_, i) => (
+                    <div key={`empty-${i}`} />
+                  ))}
+                  {Array.from({ length: daysInMonth }).map((_, i) => {
+                    const dayNum = i + 1;
+                    const mStr = String(month + 1).padStart(2, '0');
+                    const dStr = String(dayNum).padStart(2, '0');
+                    const dateString = `${year}-${mStr}-${dStr}`;
+                    const isExamDay = examDatesSet.has(dateString);
+                    const isToday = new Date().toDateString() === new Date(year, month, dayNum).toDateString();
+
+                    return (
+                      <div
+                        key={`day-${dayNum}`}
+                        style={{
+                          padding: '6px 0',
+                          borderRadius: '6px',
+                          background: isExamDay ? '#ef4444' : isToday ? '#3b82f6' : '#0f172a',
+                          color: isExamDay || isToday ? '#fff' : '#cbd5e1',
+                          fontWeight: isExamDay || isToday ? 'bold' : 'normal',
+                          border: isToday ? '1px solid #93c5fd' : 'none'
+                        }}
+                        title={isExamDay ? 'Exam Scheduled!' : ''}
+                      >
+                        {dayNum}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
             </div>
 
             {/* SMART DAILY ACTIVITY MATRIX */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))', gap: '20px' }}>
-              
-              {/* Interactive Daily Activity & Habit Matrix */}
-              <div style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
-                  <div>
-                    <h3 style={{ margin: 0, fontSize: '17px', color: '#38bdf8' }}>📊 Smart Daily Activity Matrix</h3>
-                    <span style={{ fontSize: '12px', color: '#94a3b8' }}>Track daily academic goals & study blocks</span>
-                  </div>
-                  <span style={{ background: '#0f172a', color: '#4ade80', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #334155' }}>
-                    {matrixEfficiency}% Done
-                  </span>
+            <div style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '17px', color: '#38bdf8' }}>📊 Smart Daily Activity Matrix</h3>
+                  <span style={{ fontSize: '12px', color: '#94a3b8' }}>Track daily academic preparation & study blocks</span>
                 </div>
-
-                {/* Add New Matrix Activity (Admin/Editor) */}
-                {canEdit && (
-                  <form onSubmit={handleAddMatrixItem} style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
-                    <input
-                      value={matrixTask}
-                      onChange={(e) => setMatrixTask(e.target.value)}
-                      placeholder="Add daily activity..."
-                      required
-                      style={{ flex: 1, minWidth: '140px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
-                    />
-                    <select
-                      value={matrixCategory}
-                      onChange={(e) => setMatrixCategory(e.target.value)}
-                      style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
-                    >
-                      <option value="Academic">Academic</option>
-                      <option value="Self Study">Self Study</option>
-                      <option value="Skill">Skill</option>
-                      <option value="Task">Task</option>
-                    </select>
-                    <input
-                      value={matrixTarget}
-                      onChange={(e) => setMatrixTarget(e.target.value)}
-                      placeholder="Target (e.g. 1 Hr)"
-                      style={{ width: '95px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
-                    />
-                    <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-                      +
-                    </button>
-                  </form>
-                )}
-
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {matrixItems.map((item) => (
-                    <div
-                      key={item.id}
-                      style={{
-                        background: '#0f172a',
-                        padding: '10px 12px',
-                        borderRadius: '8px',
-                        border: item.completed ? '1px solid #10b981' : '1px solid #334155',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        gap: '10px'
-                      }}
-                    >
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flex: 1 }}>
-                        <input
-                          type="checkbox"
-                          checked={item.completed}
-                          onChange={() => toggleMatrixItem(item.id)}
-                          style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                        />
-                        <div>
-                          <div style={{ fontSize: '14px', fontWeight: '500', textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? '#64748b' : '#f8fafc' }}>
-                            {item.activity}
-                          </div>
-                          <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
-                            <span style={{ color: '#38bdf8' }}>{item.category}</span> • Target: {item.target}
-                          </div>
-                        </div>
-                      </label>
-
-                      {canEdit && (
-                        <button
-                          onClick={() => handleDeleteMatrixItem(item.id)}
-                          style={{ background: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '14px' }}
-                        >
-                          ✕
-                        </button>
-                      )}
-                    </div>
-                  ))}
-                </div>
+                <span style={{ background: '#0f172a', color: '#4ade80', padding: '4px 10px', borderRadius: '8px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #334155' }}>
+                  {matrixEfficiency}% Done
+                </span>
               </div>
 
-              {/* Today's Class Timeline & Recent Portal Activity Feed */}
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                <div style={{ background: '#1e293b', padding: '18px', borderRadius: '12px', border: '1px solid #334155' }}>
-                  <h3 style={{ margin: '0 0 12px', fontSize: '16px', color: '#10b981' }}>🕒 Today's Class Timeline ({todayName})</h3>
-                  {todaysClasses.length === 0 ? (
-                    <div style={{ fontSize: '13px', color: '#94a3b8' }}>No classes scheduled for today. Great day for self-study!</div>
-                  ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                      {todaysClasses.map((c) => (
-                        <div key={c.id} style={{ background: '#0f172a', padding: '10px 12px', borderRadius: '8px', borderLeft: '3px solid #38bdf8', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <div style={{ fontWeight: 'bold', fontSize: '14px' }}>{c.course} • {c.room}</div>
-                            <div style={{ fontSize: '12px', color: '#94a3b8' }}>{c.teacher}</div>
-                          </div>
-                          <span style={{ fontFamily: 'monospace', fontSize: '12px', background: '#1e293b', padding: '4px 8px', borderRadius: '6px', color: '#38bdf8' }}>
-                            {c.startTime} - {c.endTime}
-                          </span>
+              {/* Add New Matrix Activity (Admin/Editor) */}
+              {canEdit && (
+                <form onSubmit={handleAddMatrixItem} style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
+                  <input
+                    value={matrixTask}
+                    onChange={(e) => setMatrixTask(e.target.value)}
+                    placeholder="Add daily activity..."
+                    required
+                    style={{ flex: 1, minWidth: '140px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                  />
+                  <select
+                    value={matrixCategory}
+                    onChange={(e) => setMatrixCategory(e.target.value)}
+                    style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                  >
+                    <option value="Academic">Academic</option>
+                    <option value="Self Study">Self Study</option>
+                    <option value="Skill">Skill</option>
+                    <option value="Task">Task</option>
+                  </select>
+                  <input
+                    value={matrixTarget}
+                    onChange={(e) => setMatrixTarget(e.target.value)}
+                    placeholder="Target (e.g. 1 Hr)"
+                    style={{ width: '95px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                  />
+                  <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
+                    +
+                  </button>
+                </form>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {matrixItems.map((item) => (
+                  <div
+                    key={item.id}
+                    style={{
+                      background: '#0f172a',
+                      padding: '10px 12px',
+                      borderRadius: '8px',
+                      border: item.completed ? '1px solid #10b981' : '1px solid #334155',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      gap: '10px'
+                    }}
+                  >
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', flex: 1 }}>
+                      <input
+                        type="checkbox"
+                        checked={item.completed}
+                        onChange={() => toggleMatrixItem(item.id)}
+                        style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                      />
+                      <div>
+                        <div style={{ fontSize: '14px', fontWeight: '500', textDecoration: item.completed ? 'line-through' : 'none', color: item.completed ? '#64748b' : '#f8fafc' }}>
+                          {item.activity}
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '2px' }}>
+                          <span style={{ color: '#38bdf8' }}>{item.category}</span> • Target: {item.target}
+                        </div>
+                      </div>
+                    </label>
 
-                <div style={{ background: '#1e293b', padding: '18px', borderRadius: '12px', border: '1px solid #334155' }}>
-                  <h3 style={{ margin: '0 0 12px', fontSize: '16px', color: '#c084fc' }}>⚡ Latest Portal Updates</h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', fontSize: '13px' }}>
-                    {(workspace.materials || []).slice(0, 2).map((m) => (
-                      <div key={m.id} onClick={() => setActiveTab('varsity')} style={{ background: '#0f172a', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>📄 <strong>{m.course}:</strong> {m.title}</span>
-                        <span style={{ color: '#38bdf8', fontSize: '11px' }}>View in Materials →</span>
-                      </div>
-                    ))}
-                    {(workspace.blogs || []).slice(0, 1).map((b) => (
-                      <div key={b.id} onClick={() => setActiveTab('blog')} style={{ background: '#0f172a', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', display: 'flex', justifyContent: 'space-between' }}>
-                        <span>📝 <strong>Notice:</strong> {b.title}</span>
-                        <span style={{ color: '#10b981', fontSize: '11px' }}>Read →</span>
-                      </div>
-                    ))}
+                    {canEdit && (
+                      <button
+                        onClick={() => handleDeleteMatrixItem(item.id)}
+                        style={{ background: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '14px' }}
+                      >
+                        ✕
+                      </button>
+                    )}
                   </div>
-                </div>
+                ))}
               </div>
-
             </div>
+
           </div>
         )}
 
         {/* ================================================================= */}
-        {/* TAB 2: MATERIALS HUB (ONLY IN MATERIALS TAB)                      */}
+        {/* TAB 2: MATERIALS HUB                                              */}
         {/* ================================================================= */}
         {activeTab === 'varsity' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1227,7 +1229,7 @@ export default function App() {
         )}
 
         {/* ================================================================= */}
-        {/* TAB 3: SMART DYNAMIC ROUTINE (WITH ADD, EDIT & DELETE)            */}
+        {/* TAB 3: EXAM SCHEDULE (MODIFIED FROM SMART ROUTINE)                */}
         {/* ================================================================= */}
         {activeTab === 'routine' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1235,12 +1237,12 @@ export default function App() {
               <form onSubmit={handleSaveRoutine} style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: editingRoutineId ? '2px solid #eab308' : '1px solid #334155' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
                   <h3 style={{ margin: 0, fontSize: '16px', color: editingRoutineId ? '#eab308' : '#38bdf8' }}>
-                    {editingRoutineId ? '✏️ Edit Class Slot' : '➕ Add Class Slot to Routine'}
+                    {editingRoutineId ? '✏️ Edit Exam Slot' : '➕ Add Exam Slot'}
                   </h3>
                   {editingRoutineId && (
                     <button
                       type="button"
-                      onClick={() => { setEditingRoutineId(null); setRtCourse(''); setRtRoom(''); setRtTeacher(''); }}
+                      onClick={() => { setEditingRoutineId(null); setRtCourse(''); setRtRoom(''); setRtSyllabus(''); }}
                       style={{ background: '#475569', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}
                     >
                       Cancel Edit
@@ -1249,16 +1251,12 @@ export default function App() {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '10px' }}>
-                  <select value={rtDay} onChange={(e) => setRtDay(e.target.value)} style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px' }}>
-                    {['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'].map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
+                  <input type="date" value={rtDate} onChange={(e) => setRtDate(e.target.value)} style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px' }} />
                   <input type="time" value={rtStart} onChange={(e) => setRtStart(e.target.value)} style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px' }} />
                   <input type="time" value={rtEnd} onChange={(e) => setRtEnd(e.target.value)} style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px' }} />
                   <input value={rtCourse} onChange={(e) => setRtCourse(e.target.value)} placeholder="Course (e.g. CSE-101)" required style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px' }} />
                   <input value={rtRoom} onChange={(e) => setRtRoom(e.target.value)} placeholder="Room (e.g. 402)" style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px' }} />
-                  <input value={rtTeacher} onChange={(e) => setRtTeacher(e.target.value)} placeholder="Faculty Name" style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px' }} />
+                  <input value={rtSyllabus} onChange={(e) => setRtSyllabus(e.target.value)} placeholder="Syllabus" style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px' }} />
                   <button type="submit" style={{ background: editingRoutineId ? '#eab308' : '#10b981', color: editingRoutineId ? '#000' : '#fff', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
                     {editingRoutineId ? '💾 Update Slot' : '+ Add Slot'}
                   </button>
@@ -1267,43 +1265,38 @@ export default function App() {
             )}
 
             <div style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: '1px solid #334155', overflowX: 'auto' }}>
-              <h3 style={{ margin: '0 0 14px', fontSize: '17px' }}>📅 Weekly Class Schedule (Today: <span style={{ color: '#38bdf8' }}>{todayName}</span>)</h3>
+              <h3 style={{ margin: '0 0 14px', fontSize: '17px' }}>📅 Exam Schedule</h3>
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
                 <thead>
                   <tr style={{ borderBottom: '1px solid #334155', color: '#94a3b8' }}>
-                    <th style={{ padding: '10px' }}>Day</th>
+                    <th style={{ padding: '10px' }}>Date</th>
                     <th style={{ padding: '10px' }}>Time</th>
                     <th style={{ padding: '10px' }}>Course</th>
                     <th style={{ padding: '10px' }}>Room</th>
-                    <th style={{ padding: '10px' }}>Faculty</th>
+                    <th style={{ padding: '10px' }}>Syllabus</th>
                     {canEdit && <th style={{ padding: '10px' }}>Actions</th>}
                   </tr>
                 </thead>
                 <tbody>
-                  {(workspace.routines || []).map((r) => {
-                    const isToday = r.day.toLowerCase() === todayName.toLowerCase();
-                    return (
-                      <tr key={r.id} style={{ borderBottom: '1px solid #1e293b', background: isToday ? 'rgba(56, 189, 248, 0.1)' : 'transparent' }}>
-                        <td style={{ padding: '10px', fontWeight: isToday ? 'bold' : 'normal', color: isToday ? '#38bdf8' : '#fff' }}>
-                          {r.day} {isToday && '⭐'}
+                  {(workspace.routines || []).map((r) => (
+                    <tr key={r.id} style={{ borderBottom: '1px solid #1e293b' }}>
+                      <td style={{ padding: '10px', fontWeight: 'bold', color: '#38bdf8' }}>{r.date}</td>
+                      <td style={{ padding: '10px', fontFamily: 'monospace' }}>{r.startTime} - {r.endTime}</td>
+                      <td style={{ padding: '10px', fontWeight: 'bold' }}>{r.course}</td>
+                      <td style={{ padding: '10px' }}>{r.room}</td>
+                      <td style={{ padding: '10px', color: '#94a3b8' }}>{r.syllabus}</td>
+                      {canEdit && (
+                        <td style={{ padding: '10px', display: 'flex', gap: '6px' }}>
+                          <button onClick={() => startEditRoutine(r)} style={{ background: '#eab308', color: '#000', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                            ✏️ Edit
+                          </button>
+                          <button onClick={() => handleDeleteRoutine(r.id)} style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                            🗑️
+                          </button>
                         </td>
-                        <td style={{ padding: '10px', fontFamily: 'monospace' }}>{r.startTime} - {r.endTime}</td>
-                        <td style={{ padding: '10px', fontWeight: 'bold' }}>{r.course}</td>
-                        <td style={{ padding: '10px' }}>{r.room}</td>
-                        <td style={{ padding: '10px', color: '#94a3b8' }}>{r.teacher}</td>
-                        {canEdit && (
-                          <td style={{ padding: '10px', display: 'flex', gap: '6px' }}>
-                            <button onClick={() => startEditRoutine(r)} style={{ background: '#eab308', color: '#000', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                              ✏️ Edit
-                            </button>
-                            <button onClick={() => handleDeleteRoutine(r.id)} style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
-                              🗑️
-                            </button>
-                          </td>
-                        )}
-                      </tr>
-                    );
-                  })}
+                      )}
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>
@@ -1495,7 +1488,7 @@ export default function App() {
         )}
 
         {/* ================================================================= */}
-        {/* TAB 6: NOTICE / ACADEMIC BLOG (WITH ADD, EDIT & DELETE)           */}
+        {/* TAB 6: NOTICE / ACADEMIC BLOG                                     */}
         {/* ================================================================= */}
         {activeTab === 'blog' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1547,7 +1540,7 @@ export default function App() {
         )}
 
         {/* ================================================================= */}
-        {/* TAB 7: ADMIN USER CONTROL (CREATE, EDIT ACCESS, DELETE, BACKUP)   */}
+        {/* TAB 7: ADMIN USER CONTROL                                         */}
         {/* ================================================================= */}
         {activeTab === 'admin' && isAdmin && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1556,7 +1549,7 @@ export default function App() {
             <div style={{ background: '#1e293b', padding: '18px', borderRadius: '12px', border: '1px solid #10b981', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
               <div>
                 <h3 style={{ margin: '0 0 4px', color: '#10b981', fontSize: '16px' }}>☁️ One-Click Data Backup & Restore (JSON)</h3>
-                <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Download a full backup of all materials, routines, and notices, or restore from a JSON file anytime.</p>
+                <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Download a full backup of all materials, exams, and notices, or restore from a JSON file anytime.</p>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={handleExportJSON} style={{ background: '#059669', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
