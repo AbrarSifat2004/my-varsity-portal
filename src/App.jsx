@@ -8,7 +8,7 @@ const DEFAULT_WORKSPACE = {
   },
   notifications: [
     { id: 1, title: 'Exam Schedule Updated', text: 'New exam slots for CSE-101 and MAT-102 have been added.', time: '10:00 AM', read: false },
-    { id: 2, title: 'New Material Uploaded', text: 'Introduction to Programming lecture slide is now available.', time: 'Yesterday', read: true }
+    { id: 2, title: 'NotebookLM Studio Ready', text: 'AI Study Guides, Audio Overview links, and Flashcards are now live in Study Tools.', time: 'Just now', read: false }
   ],
   dailyMatrix: [
     { id: 1, activity: 'Prepare Exam Syllabus Topics', category: 'Academic', target: '2 Topics', completed: true },
@@ -58,6 +58,44 @@ const DEFAULT_WORKSPACE = {
       time: '10:30 AM',
       replies: [
         { id: 101, author: 'admin', text: 'Please check the Exam Schedule tab, syllabus details are listed there.', time: '10:45 AM' }
+      ]
+    }
+  ],
+  notebooks: [
+    {
+      id: 1,
+      course: 'MAT-102',
+      title: 'Linear Algebra & Matrix Determinants AI Notebook',
+      notebookUrl: 'https://notebooklm.google.com/',
+      audioOverviewUrl: '',
+      summary: 'Key Takeaways:\n1. A square matrix A is invertible if and only if det(A) ≠ 0.\n2. Row operations affect determinants: swapping two rows flips the sign.\n3. Cramer’s Rule uses determinants to solve systems of linear equations.',
+      sources: [
+        { id: 101, title: 'Lecture 01-03: Matrix & Determinants PDF', type: 'PDF', url: 'https://notebooklm.google.com/' },
+        { id: 102, title: 'MIT OpenCourseWare Linear Algebra Reference', type: 'Web Link', url: 'https://ocw.mit.edu/' }
+      ],
+      flashcards: [
+        { id: 201, question: 'When is a square matrix A considered singular (non-invertible)?', answer: 'When its determinant is equal to zero: det(A) = 0.' },
+        { id: 202, question: 'What happens to det(A) if two rows of matrix A are interchanged?', answer: 'The sign of the determinant reverses: det(B) = -det(A).' }
+      ],
+      faqs: [
+        { id: 301, q: 'How to quickly calculate a 3x3 determinant?', a: 'Use cofactor expansion along the row or column that contains the most zeros, or apply Sarrus Rule.' }
+      ]
+    },
+    {
+      id: 2,
+      course: 'CSE-101',
+      title: 'Structured Programming & C Language Hub',
+      notebookUrl: 'https://notebooklm.google.com/',
+      audioOverviewUrl: '',
+      summary: 'Key Takeaways:\n1. Pointers store memory addresses of variables.\n2. Functions help modularize code and avoid repetition.\n3. Arrays store contiguous elements of the same data type.',
+      sources: [
+        { id: 103, title: 'C Programming Complete Slide Deck', type: 'Slide', url: 'https://notebooklm.google.com/' }
+      ],
+      flashcards: [
+        { id: 203, question: 'What is the difference between = and == in C?', answer: '"=" is the assignment operator, whereas "==" is the relational equality operator.' }
+      ],
+      faqs: [
+        { id: 302, q: 'Which chapters are most important for Midterm?', a: 'Loops, Arrays, Functions, and basic Pointers.' }
       ]
     }
   ]
@@ -152,7 +190,7 @@ export default function App() {
   const [questionText, setQuestionText] = useState('');
   const [replyTexts, setReplyTexts] = useState({});
 
-  // --- CUSTOM POMODORO TIMER STATE ---
+  // --- STUDY TOOLS: EDITABLE TIMER WITH BREAK & INTERVALS ---
   const [focusMinutes, setFocusMinutes] = useState(25);
   const [breakMinutes, setBreakMinutes] = useState(5);
   const [totalIntervals, setTotalIntervals] = useState(4);
@@ -161,19 +199,29 @@ export default function App() {
   const [pomoSeconds, setPomoSeconds] = useState(25 * 60);
   const [pomoRunning, setPomoRunning] = useState(false);
 
-  // Productivity Tools: To-Do, Attendance, CGPA
-  const [todoList, setTodoList] = useState([
-    { id: 1, text: 'Complete CSE-101 Assignment', done: false },
-    { id: 2, text: 'Revise Matrix Determinant Notes', done: true }
-  ]);
-  const [newTodo, setNewTodo] = useState('');
-  const [attendedClasses, setAttendedClasses] = useState(18);
-  const [totalClasses, setTotalClasses] = useState(22);
-  const [cgpaCourses, setCgpaCourses] = useState([
-    { name: 'Course 1', credit: 3, gpa: 3.75 },
-    { name: 'Course 2', credit: 3, gpa: 4.00 },
-    { name: 'Course 3', credit: 1.5, gpa: 3.50 }
-  ]);
+  // --- STUDY TOOLS: NOTEBOOKLM AI HUB STATE ---
+  const [selectedNotebookId, setSelectedNotebookId] = useState(1);
+  const [nbStudioTab, setNbStudioTab] = useState('guide'); // 'guide' | 'sources' | 'flashcards' | 'faq' | 'chat'
+  const [flippedCards, setFlippedCards] = useState({});
+
+  // NotebookLM Create / Edit Form States
+  const [nbCourse, setNbCourse] = useState('');
+  const [nbTitle, setNbTitle] = useState('');
+  const [nbUrl, setNbUrl] = useState('https://notebooklm.google.com/');
+  const [nbAudioUrl, setNbAudioUrl] = useState('');
+  const [nbSummary, setNbSummary] = useState('');
+  const [editingNotebookId, setEditingNotebookId] = useState(null);
+
+  // NotebookLM Sub-items Form States (Sources, Flashcards, FAQs, Chat)
+  const [srcTitle, setSrcTitle] = useState('');
+  const [srcType, setSrcType] = useState('PDF');
+  const [srcUrl, setSrcUrl] = useState('');
+  const [fcQuestion, setFcQuestion] = useState('');
+  const [fcAnswer, setFcAnswer] = useState('');
+  const [faqQ, setFaqQ] = useState('');
+  const [faqA, setFaqA] = useState('');
+  const [nbPromptQuery, setNbPromptQuery] = useState('');
+  const [copiedNotice, setCopiedNotice] = useState('');
 
   const isAdmin = currentUser?.role === 'admin';
   const canEdit = isAdmin || currentUser?.access_type === 'edit';
@@ -195,7 +243,8 @@ export default function App() {
           ...DEFAULT_WORKSPACE,
           ...json.data,
           dailyMatrix: json.data.dailyMatrix || DEFAULT_WORKSPACE.dailyMatrix,
-          notifications: json.data.notifications || DEFAULT_WORKSPACE.notifications
+          notifications: json.data.notifications || DEFAULT_WORKSPACE.notifications,
+          notebooks: json.data.notebooks || DEFAULT_WORKSPACE.notebooks
         });
       }
     } catch (err) {
@@ -252,7 +301,7 @@ export default function App() {
     return () => clearInterval(timer);
   }, [workspace.examCountdown]);
 
-  // --- CUSTOM POMODORO TIMER WITH INTERVALS & BEEP-BEEP SOUND ---
+  // --- EDITABLE TIMER WITH BREAK, INTERVALS & BEEP-BEEP SOUND ---
   useEffect(() => {
     let interval = null;
     if (pomoRunning && pomoSeconds > 0) {
@@ -284,7 +333,7 @@ export default function App() {
   }, [pomoRunning, pomoSeconds, isBreakMode, currentInterval, totalIntervals, focusMinutes, breakMinutes]);
 
   const applyCustomPomodoroSettings = (e) => {
-    e.preventDefault();
+    if (e) e.preventDefault();
     const validFocus = Math.max(1, Number(focusMinutes) || 25);
     const validBreak = Math.max(1, Number(breakMinutes) || 5);
     const validIntervals = Math.max(1, Number(totalIntervals) || 4);
@@ -295,6 +344,166 @@ export default function App() {
     setIsBreakMode(false);
     setCurrentInterval(1);
     setPomoSeconds(validFocus * 60);
+  };
+
+  const applyPresetTimer = (fMin, bMin, rounds) => {
+    setFocusMinutes(fMin);
+    setBreakMinutes(bMin);
+    setTotalIntervals(rounds);
+    setPomoRunning(false);
+    setIsBreakMode(false);
+    setCurrentInterval(1);
+    setPomoSeconds(fMin * 60);
+  };
+
+  const skipTimerPhase = () => {
+    setPomoRunning(false);
+    if (!isBreakMode) {
+      setIsBreakMode(true);
+      setPomoSeconds(Math.max(1, Number(breakMinutes)) * 60);
+    } else {
+      const nextRound = currentInterval < totalIntervals ? currentInterval + 1 : 1;
+      setCurrentInterval(nextRound);
+      setIsBreakMode(false);
+      setPomoSeconds(Math.max(1, Number(focusMinutes)) * 60);
+    }
+  };
+
+  // --- NOTEBOOKLM STUDIO HANDLERS ---
+  const notebooksList = workspace.notebooks || DEFAULT_WORKSPACE.notebooks;
+  const activeNotebook = notebooksList.find((n) => n.id === Number(selectedNotebookId)) || notebooksList[0] || null;
+
+  const handleSaveNotebook = (e) => {
+    e.preventDefault();
+    if (!nbCourse.trim() || !nbTitle.trim()) return;
+
+    let updatedNotebooks;
+    if (editingNotebookId) {
+      updatedNotebooks = notebooksList.map((nb) =>
+        nb.id === editingNotebookId
+          ? {
+              ...nb,
+              course: nbCourse.trim().toUpperCase(),
+              title: nbTitle.trim(),
+              notebookUrl: nbUrl.trim() || 'https://notebooklm.google.com/',
+              audioOverviewUrl: nbAudioUrl.trim(),
+              summary: nbSummary.trim()
+            }
+          : nb
+      );
+      setEditingNotebookId(null);
+    } else {
+      const newNb = {
+        id: Date.now(),
+        course: nbCourse.trim().toUpperCase(),
+        title: nbTitle.trim(),
+        notebookUrl: nbUrl.trim() || 'https://notebooklm.google.com/',
+        audioOverviewUrl: nbAudioUrl.trim(),
+        summary: nbSummary.trim() || 'Add AI Study Guide & Key Takeaways here...',
+        sources: [],
+        flashcards: [],
+        faqs: []
+      };
+      updatedNotebooks = [newNb, ...notebooksList];
+      setSelectedNotebookId(newNb.id);
+    }
+
+    saveWorkspace({ ...workspace, notebooks: updatedNotebooks });
+    setNbCourse('');
+    setNbTitle('');
+    setNbUrl('https://notebooklm.google.com/');
+    setNbAudioUrl('');
+    setNbSummary('');
+  };
+
+  const startEditNotebook = (nb) => {
+    setEditingNotebookId(nb.id);
+    setNbCourse(nb.course);
+    setNbTitle(nb.title);
+    setNbUrl(nb.notebookUrl || 'https://notebooklm.google.com/');
+    setNbAudioUrl(nb.audioOverviewUrl || '');
+    setNbSummary(nb.summary || '');
+  };
+
+  const handleDeleteNotebook = (id) => {
+    if (!window.confirm('Delete this NotebookLM workspace from the portal?')) return;
+    const updated = notebooksList.filter((n) => n.id !== id);
+    saveWorkspace({ ...workspace, notebooks: updated });
+    if (updated.length > 0) setSelectedNotebookId(updated[0].id);
+  };
+
+  const handleAddNotebookSource = (e) => {
+    e.preventDefault();
+    if (!activeNotebook || !srcTitle.trim()) return;
+    const newSource = {
+      id: Date.now(),
+      title: srcTitle.trim(),
+      type: srcType,
+      url: srcUrl.trim() || activeNotebook.notebookUrl
+    };
+    const updated = notebooksList.map((nb) =>
+      nb.id === activeNotebook.id ? { ...nb, sources: [...(nb.sources || []), newSource] } : nb
+    );
+    saveWorkspace({ ...workspace, notebooks: updated });
+    setSrcTitle('');
+    setSrcUrl('');
+  };
+
+  const handleDeleteNotebookSource = (sourceId) => {
+    if (!activeNotebook) return;
+    const updated = notebooksList.map((nb) =>
+      nb.id === activeNotebook.id ? { ...nb, sources: (nb.sources || []).filter((s) => s.id !== sourceId) } : nb
+    );
+    saveWorkspace({ ...workspace, notebooks: updated });
+  };
+
+  const handleAddFlashcard = (e) => {
+    e.preventDefault();
+    if (!activeNotebook || !fcQuestion.trim() || !fcAnswer.trim()) return;
+    const newCard = { id: Date.now(), question: fcQuestion.trim(), answer: fcAnswer.trim() };
+    const updated = notebooksList.map((nb) =>
+      nb.id === activeNotebook.id ? { ...nb, flashcards: [...(nb.flashcards || []), newCard] } : nb
+    );
+    saveWorkspace({ ...workspace, notebooks: updated });
+    setFcQuestion('');
+    setFcAnswer('');
+  };
+
+  const handleDeleteFlashcard = (cardId) => {
+    if (!activeNotebook) return;
+    const updated = notebooksList.map((nb) =>
+      nb.id === activeNotebook.id ? { ...nb, flashcards: (nb.flashcards || []).filter((c) => c.id !== cardId) } : nb
+    );
+    saveWorkspace({ ...workspace, notebooks: updated });
+  };
+
+  const handleAddFaq = (e) => {
+    e.preventDefault();
+    if (!activeNotebook || !faqQ.trim() || !faqA.trim()) return;
+    const newFaq = { id: Date.now(), q: faqQ.trim(), a: faqA.trim() };
+    const updated = notebooksList.map((nb) =>
+      nb.id === activeNotebook.id ? { ...nb, faqs: [...(nb.faqs || []), newFaq] } : nb
+    );
+    saveWorkspace({ ...workspace, notebooks: updated });
+    setFaqQ('');
+    setFaqA('');
+  };
+
+  const handleDeleteFaq = (faqId) => {
+    if (!activeNotebook) return;
+    const updated = notebooksList.map((nb) =>
+      nb.id === activeNotebook.id ? { ...nb, faqs: (nb.faqs || []).filter((f) => f.id !== faqId) } : nb
+    );
+    saveWorkspace({ ...workspace, notebooks: updated });
+  };
+
+  const copyPromptAndLaunchNotebookLM = (promptText, targetUrl) => {
+    if (navigator.clipboard && promptText) {
+      navigator.clipboard.writeText(promptText);
+      setCopiedNotice('✅ Prompt copied to clipboard! Paste it inside NotebookLM.');
+      setTimeout(() => setCopiedNotice(''), 4000);
+    }
+    window.open(targetUrl || 'https://notebooklm.google.com/', '_blank');
   };
 
   // --- LOGIN / LOGOUT HANDLERS ---
@@ -404,7 +613,6 @@ export default function App() {
       };
       updatedMaterials = [newMat, ...(workspace.materials || [])];
 
-      // Add Notification
       const newNotif = { id: Date.now(), title: 'New Material Published', text: `${matCourse}: ${matTitle}`, time: 'Just now', read: false };
       saveWorkspace({ ...workspace, materials: updatedMaterials, notifications: [newNotif, ...(workspace.notifications || [])] });
       setMatCourse('');
@@ -475,7 +683,6 @@ export default function App() {
       };
       updatedRoutines = [...(workspace.routines || []), newRt];
 
-      // Add Notification for Exam Slot
       const newNotif = { id: Date.now(), title: 'Exam Slot Added', text: `${rtCourse.toUpperCase()} exam scheduled on ${rtDate}`, time: 'Just now', read: false };
       saveWorkspace({ ...workspace, routines: updatedRoutines, notifications: [newNotif, ...(workspace.notifications || [])] });
       setRtCourse('');
@@ -694,7 +901,7 @@ export default function App() {
     const matchesSearch =
       item.course.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.title.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesType = typeFilter === 'All' || item.type === item.type;
+    const matchesType = typeFilter === 'All' || item.type === typeFilter;
     return matchesSearch && matchesType;
   });
 
@@ -703,7 +910,6 @@ export default function App() {
   const matrixEfficiency = matrixItems.length > 0 ? Math.round((completedMatrixCount / matrixItems.length) * 100) : 0;
   const unreadNotifCount = (workspace.notifications || []).filter((n) => !n.read).length;
 
-  // Mark notifications as read
   const handleOpenNotifications = () => {
     setShowNotifications(!showNotifications);
     if (!showNotifications && unreadNotifCount > 0) {
@@ -718,10 +924,12 @@ export default function App() {
   const month = calendarDate.getMonth();
   const firstDayOfMonth = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const monthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-
-  // Set of exam dates formatted as 'YYYY-MM-DD'
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
   const examDatesSet = new Set((workspace.routines || []).map((r) => r.date));
+
+  // Calculate Timer Progress Percentage
+  const totalPhaseSeconds = (isBreakMode ? Math.max(1, Number(breakMinutes)) : Math.max(1, Number(focusMinutes))) * 60;
+  const timerProgressPct = Math.min(100, Math.max(0, ((totalPhaseSeconds - pomoSeconds) / totalPhaseSeconds) * 100));
 
   // ============================================================================
   // LOGIN SCREEN
@@ -802,7 +1010,7 @@ export default function App() {
               { id: 'dashboard', label: '🏠 Dashboard' },
               { id: 'varsity', label: '📚 Materials' },
               { id: 'routine', label: '📅 Exam Schedule' },
-              { id: 'tools', label: '🍅 Study Tools' },
+              { id: 'tools', label: '🧠 Study Tools' },
               { id: 'qna', label: '💬 Q&A Forum' },
               { id: 'blog', label: '📝 Notice/Blog' },
               ...(isAdmin ? [{ id: 'admin', label: '🛡️ User Control' }] : [])
@@ -1009,7 +1217,6 @@ export default function App() {
                 </span>
               </div>
 
-              {/* Add New Matrix Activity (Admin/Editor) */}
               {canEdit && (
                 <form onSubmit={handleAddMatrixItem} style={{ display: 'flex', gap: '6px', marginBottom: '14px', flexWrap: 'wrap' }}>
                   <input
@@ -1095,7 +1302,6 @@ export default function App() {
         {activeTab === 'varsity' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
-            {/* Upload / Edit Material Form (Admin/Editor) */}
             {canEdit && (
               <form onSubmit={handleSaveMaterial} style={{ background: '#1e293b', padding: '16px', borderRadius: '12px', border: editingMaterialId ? '2px solid #eab308' : '1px solid #334155' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
@@ -1134,7 +1340,6 @@ export default function App() {
               </form>
             )}
 
-            {/* Instant Search & Filter Bar */}
             <div style={{ background: '#1e293b', padding: '14px', borderRadius: '12px', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
               <h3 style={{ margin: 0, fontSize: '17px' }}>📚 Course Materials & Lecture Vault</h3>
               <div style={{ display: 'flex', gap: '8px', flex: 1, maxWidth: '500px' }}>
@@ -1158,7 +1363,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Materials Grid */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '16px' }}>
               {filteredMaterials.map((item) => {
                 const fileSource = item.fileData || item.externalUrl;
@@ -1229,7 +1433,7 @@ export default function App() {
         )}
 
         {/* ================================================================= */}
-        {/* TAB 3: EXAM SCHEDULE (MODIFIED FROM SMART ROUTINE)                */}
+        {/* TAB 3: EXAM SCHEDULE                                              */}
         {/* ================================================================= */}
         {activeTab === 'routine' && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1304,125 +1508,560 @@ export default function App() {
         )}
 
         {/* ================================================================= */}
-        {/* TAB 4: PRODUCTIVITY TOOLS (CUSTOM POMODORO WITH BEEP, ATT, CGPA)  */}
+        {/* TAB 4: STUDY TOOLS (EDITABLE TIMER + NOTEBOOKLM AI STUDIO)        */}
         {/* ================================================================= */}
         {activeTab === 'tools' && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(330px, 1fr))', gap: '20px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             
-            {/* Custom Pomodoro Timer with Intervals & Beep-Beep Sound */}
-            <div style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                <h3 style={{ margin: 0, color: '#f43f5e' }}>🍅 Custom Pomodoro Timer</h3>
-                <span style={{ background: isBreakMode ? '#10b981' : '#3b82f6', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}>
-                  {isBreakMode ? '☕ Break Time' : '🔥 Focus Mode'} • Round {currentInterval}/{totalIntervals}
-                </span>
-              </div>
-
-              {/* Custom Timer & Interval Configuration */}
-              <form onSubmit={applyCustomPomodoroSettings} style={{ background: '#0f172a', padding: '10px', borderRadius: '8px', border: '1px solid #334155', marginBottom: '12px', display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '6px', alignItems: 'end' }}>
+            {/* SECTION 1: EDITABLE STUDY TIMER WITH BREAK & INTERVALS */}
+            <div style={{ background: 'linear-gradient(135deg, #1e293b 0%, #0f172a 100%)', padding: '24px', borderRadius: '16px', border: '1px solid #334155', boxShadow: '0 8px 25px rgba(0,0,0,0.35)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', marginBottom: '16px' }}>
                 <div>
-                  <label style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>Focus (Min)</label>
-                  <input type="number" min="1" max="180" value={focusMinutes} onChange={(e) => setFocusMinutes(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '5px', borderRadius: '4px', fontSize: '12px' }} />
+                  <h3 style={{ margin: 0, fontSize: '19px', color: '#38bdf8' }}>⏱️ Editable Focus Timer (With Break & Intervals)</h3>
+                  <span style={{ fontSize: '13px', color: '#94a3b8' }}>Customize focus duration, break time, and session intervals with auto beep-beep alarm</span>
                 </div>
-                <div>
-                  <label style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>Break (Min)</label>
-                  <input type="number" min="1" max="60" value={breakMinutes} onChange={(e) => setBreakMinutes(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '5px', borderRadius: '4px', fontSize: '12px' }} />
-                </div>
-                <div>
-                  <label style={{ fontSize: '10px', color: '#94a3b8', display: 'block', marginBottom: '3px' }}>Intervals</label>
-                  <input type="number" min="1" max="20" value={totalIntervals} onChange={(e) => setTotalIntervals(e.target.value)} style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '5px', borderRadius: '4px', fontSize: '12px' }} />
-                </div>
-                <button type="submit" style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                  Set
-                </button>
-              </form>
 
-              {/* Countdown Display */}
-              <div style={{ fontSize: '42px', fontWeight: 'bold', fontFamily: 'monospace', textAlign: 'center', margin: '12px 0', background: '#0f172a', padding: '14px', borderRadius: '10px', border: isBreakMode ? '1px solid #10b981' : '1px solid #334155', color: isBreakMode ? '#4ade80' : '#f8fafc' }}>
-                {String(Math.floor(pomoSeconds / 60)).padStart(2, '0')}:{String(pomoSeconds % 60).padStart(2, '0')}
+                {/* Quick Presets */}
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  <button onClick={() => applyPresetTimer(25, 5, 4)} style={{ background: '#0f172a', color: '#38bdf8', border: '1px solid #334155', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                    🍅 Classic (25m / 5m × 4)
+                  </button>
+                  <button onClick={() => applyPresetTimer(50, 10, 3)} style={{ background: '#0f172a', color: '#10b981', border: '1px solid #334155', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                    🔥 Deep Work (50m / 10m × 3)
+                  </button>
+                  <button onClick={() => applyPresetTimer(15, 3, 6)} style={{ background: '#0f172a', color: '#c084fc', border: '1px solid #334155', padding: '6px 10px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
+                    ⚡ SprintRevision (15m / 3m × 6)
+                  </button>
+                </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginBottom: '18px', flexWrap: 'wrap' }}>
-                <button onClick={() => setPomoRunning(!pomoRunning)} style={{ background: pomoRunning ? '#eab308' : '#10b981', color: pomoRunning ? '#000' : '#fff', border: 'none', padding: '8px 16px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
-                  {pomoRunning ? '⏸️ Pause' : '▶️ Start Timer'}
-                </button>
-                <button
-                  onClick={() => {
-                    setPomoRunning(false);
-                    setIsBreakMode(false);
-                    setCurrentInterval(1);
-                    setPomoSeconds(Math.max(1, Number(focusMinutes)) * 60);
-                  }}
-                  style={{ background: '#475569', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}
-                >
-                  🔄 Reset
-                </button>
-                <button onClick={playBeepAlarm} title="Test Beep-Beep Sound" style={{ background: '#334155', color: '#38bdf8', border: '1px solid #475569', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}>
-                  🔊 Test Beep
-                </button>
-              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '20px', alignItems: 'center' }}>
+                
+                {/* Left: Timer Display & Controls */}
+                <div style={{ background: '#090d16', padding: '20px', borderRadius: '14px', border: isBreakMode ? '2px solid #10b981' : '2px solid #3b82f6', textAlign: 'center' }}>
+                  <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '8px' }}>
+                    <span style={{ background: isBreakMode ? '#10b981' : '#3b82f6', color: '#fff', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold' }}>
+                      {isBreakMode ? '☕ BREAK SESSION' : '🔥 FOCUS SESSION'}
+                    </span>
+                    <span style={{ background: '#1e293b', color: '#cbd5e1', padding: '4px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: 'bold', border: '1px solid #334155' }}>
+                      Interval {currentInterval} of {totalIntervals}
+                    </span>
+                  </div>
 
-              <h4 style={{ margin: '0 0 8px', fontSize: '14px', color: '#94a3b8' }}>✅ Quick Study Tasks</h4>
-              <div style={{ display: 'flex', gap: '6px', marginBottom: '10px' }}>
-                <input value={newTodo} onChange={(e) => setNewTodo(e.target.value)} placeholder="Add a new study task..." style={{ flex: 1, background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '6px 10px', borderRadius: '6px' }} />
-                <button onClick={() => { if (newTodo.trim()) { setTodoList([...todoList, { id: Date.now(), text: newTodo.trim(), done: false }]); setNewTodo(''); } }} style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', cursor: 'pointer' }}>+</button>
-              </div>
-              {todoList.map((t) => (
-                <div key={t.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #334155', fontSize: '13px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', textDecoration: t.done ? 'line-through' : 'none', color: t.done ? '#64748b' : '#fff', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={t.done} onChange={() => setTodoList(todoList.map((item) => item.id === t.id ? { ...item, done: !item.done } : item))} />
-                    {t.text}
-                  </label>
-                  <button onClick={() => setTodoList(todoList.filter((item) => item.id !== t.id))} style={{ background: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer' }}>✕</button>
+                  <div style={{ fontSize: '56px', fontWeight: 'bold', fontFamily: 'monospace', color: isBreakMode ? '#4ade80' : '#f8fafc', margin: '10px 0', letterSpacing: '3px' }}>
+                    {String(Math.floor(pomoSeconds / 60)).padStart(2, '0')}:{String(pomoSeconds % 60).padStart(2, '0')}
+                  </div>
+
+                  {/* Progress Bar */}
+                  <div style={{ width: '100%', height: '8px', background: '#1e293b', borderRadius: '4px', overflow: 'hidden', marginBottom: '16px' }}>
+                    <div style={{ width: `${timerProgressPct}%`, height: '100%', background: isBreakMode ? '#10b981' : '#38bdf8', transition: 'width 0.4s ease' }} />
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => setPomoRunning(!pomoRunning)}
+                      style={{ background: pomoRunning ? '#eab308' : '#10b981', color: pomoRunning ? '#000' : '#fff', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}
+                    >
+                      {pomoRunning ? '⏸️ Pause' : '▶️ Start'}
+                    </button>
+                    <button
+                      onClick={skipTimerPhase}
+                      style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+                    >
+                      ⏭️ Skip Phase
+                    </button>
+                    <button
+                      onClick={() => applyCustomPomodoroSettings()}
+                      style={{ background: '#475569', color: '#fff', border: 'none', padding: '10px 14px', borderRadius: '8px', cursor: 'pointer', fontSize: '13px' }}
+                    >
+                      🔄 Reset
+                    </button>
+                    <button
+                      onClick={playBeepAlarm}
+                      style={{ background: '#1e293b', color: '#38bdf8', border: '1px solid #334155', padding: '10px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', fontWeight: 'bold' }}
+                    >
+                      🔊 Test Beep
+                    </button>
+                  </div>
                 </div>
-              ))}
+
+                {/* Right: Editable Timer Settings Form */}
+                <form onSubmit={applyCustomPomodoroSettings} style={{ background: '#0f172a', padding: '20px', borderRadius: '14px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <h4 style={{ margin: 0, color: '#f8fafc', fontSize: '15px' }}>⚙️ Customize Timer & Interval Settings</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Focus (Mins)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="240"
+                        value={focusMinutes}
+                        onChange={(e) => setFocusMinutes(e.target.value)}
+                        style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '10px', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Break (Mins)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="60"
+                        value={breakMinutes}
+                        onChange={(e) => setBreakMinutes(e.target.value)}
+                        style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '10px', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ fontSize: '12px', color: '#94a3b8', display: 'block', marginBottom: '6px' }}>Intervals</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="20"
+                        value={totalIntervals}
+                        onChange={(e) => setTotalIntervals(e.target.value)}
+                        style={{ width: '100%', boxSizing: 'border-box', background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '10px', borderRadius: '8px', fontSize: '15px', fontWeight: 'bold' }}
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '11px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '14px' }}
+                  >
+                    ✅ Apply Custom Timer Settings
+                  </button>
+                </form>
+
+              </div>
             </div>
 
-            {/* Attendance Calculator */}
-            <div style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-              <h3 style={{ margin: '0 0 12px', color: '#38bdf8' }}>📊 Smart Attendance Calculator</h3>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <label style={{ fontSize: '14px' }}>
-                  Classes Attended:
-                  <input type="number" value={attendedClasses} onChange={(e) => setAttendedClasses(Number(e.target.value))} style={{ width: '100%', boxSizing: 'border-box', marginTop: '6px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '10px', borderRadius: '8px' }} />
-                </label>
-                <label style={{ fontSize: '14px' }}>
-                  Total Classes Held:
-                  <input type="number" value={totalClasses} onChange={(e) => setTotalClasses(Number(e.target.value))} style={{ width: '100%', boxSizing: 'border-box', marginTop: '6px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '10px', borderRadius: '8px' }} />
-                </label>
-                <div style={{ background: '#0f172a', padding: '16px', borderRadius: '10px', textAlign: 'center', border: '1px solid #334155', marginTop: '8px' }}>
-                  <div style={{ fontSize: '13px', color: '#94a3b8' }}>Current Attendance Rate</div>
-                  <div style={{ fontSize: '32px', fontWeight: 'bold', color: attendancePct >= 75 ? '#4ade80' : '#f87171', margin: '4px 0' }}>
-                    {attendancePct}%
-                  </div>
-                  <div style={{ fontSize: '12px', color: attendancePct >= 75 ? '#4ade80' : '#fca5a5' }}>
-                    {attendancePct >= 75 ? '✅ Safe Zone (75%+ Attendance)' : '⚠️ Low Attendance! Please attend upcoming classes regularly.'}
+            {/* SECTION 2: NOTEBOOKLM AI RESEARCH & STUDY STUDIO (ALL FACILITIES LINKED) */}
+            <div style={{ background: '#1e293b', padding: '24px', borderRadius: '16px', border: '1px solid #38bdf8', boxShadow: '0 8px 30px rgba(56, 189, 248, 0.12)' }}>
+              
+              {/* Studio Header Bar */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '14px', paddingBottom: '16px', borderBottom: '1px solid #334155', marginBottom: '20px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <div style={{ fontSize: '34px' }}>📓</div>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <h3 style={{ margin: 0, fontSize: '20px', color: '#f8fafc' }}>Google NotebookLM AI Study Studio</h3>
+                      <span style={{ background: '#0284c7', color: '#fff', padding: '2px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}>
+                        ALL FACILITIES LINKED
+                      </span>
+                    </div>
+                    <p style={{ margin: '4px 0 0', fontSize: '13px', color: '#94a3b8' }}>
+                      Access Course Notebooks, Audio Overviews (Deep Dive Podcasts), Study Guides, Source Vault, 3D Flashcards & AI Prompt Launcher
+                    </p>
                   </div>
                 </div>
-              </div>
-            </div>
 
-            {/* CGPA Calculator */}
-            <div style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
-                <h3 style={{ margin: 0, color: '#c084fc' }}>🎓 Semester CGPA Calculator</h3>
-                <span style={{ background: '#0f172a', color: '#c084fc', padding: '6px 12px', borderRadius: '8px', fontWeight: 'bold', fontSize: '18px', border: '1px solid #a855f7' }}>
-                  {calculatedCGPA}
-                </span>
+                <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                  <a
+                    href="https://notebooklm.google.com/"
+                    target="_blank"
+                    rel="noreferrer"
+                    style={{ background: 'linear-gradient(135deg, #3b82f6, #8b5cf6)', color: '#fff', textDecoration: 'none', padding: '10px 16px', borderRadius: '10px', fontWeight: 'bold', fontSize: '13px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    🚀 Launch Google NotebookLM ↗
+                  </a>
+                  {activeNotebook && (
+                    <a
+                      href={activeNotebook.notebookUrl || 'https://notebooklm.google.com/'}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ background: '#10b981', color: '#fff', textDecoration: 'none', padding: '10px 16px', borderRadius: '10px', fontWeight: 'bold', fontSize: '13px' }}
+                    >
+                      📂 Open "{activeNotebook.course}" Notebook ↗
+                    </a>
+                  )}
+                </div>
               </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', maxHeight: '220px', overflowY: 'auto', marginBottom: '12px' }}>
-                {cgpaCourses.map((c, i) => (
-                  <div key={i} style={{ display: 'flex', gap: '8px' }}>
-                    <input value={c.name} onChange={(e) => { const list = [...cgpaCourses]; list[i].name = e.target.value; setCgpaCourses(list); }} placeholder="Course" style={{ flex: 1, background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '6px', borderRadius: '6px', fontSize: '13px' }} />
-                    <input type="number" step="0.5" value={c.credit} onChange={(e) => { const list = [...cgpaCourses]; list[i].credit = e.target.value; setCgpaCourses(list); }} placeholder="Credit" style={{ width: '65px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '6px', borderRadius: '6px', fontSize: '13px' }} />
-                    <input type="number" step="0.05" value={c.gpa} onChange={(e) => { const list = [...cgpaCourses]; list[i].gpa = e.target.value; setCgpaCourses(list); }} placeholder="GPA" style={{ width: '65px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '6px', borderRadius: '6px', fontSize: '13px' }} />
-                  </div>
+
+              {copiedNotice && (
+                <div style={{ background: '#065f46', color: '#a7f3d0', padding: '10px 14px', borderRadius: '8px', marginBottom: '16px', fontSize: '13px', fontWeight: 'bold', border: '1px solid #10b981' }}>
+                  {copiedNotice}
+                </div>
+              )}
+
+              {/* Course Notebook Selector Tabs */}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '20px', alignItems: 'center' }}>
+                <span style={{ fontSize: '13px', color: '#94a3b8', fontWeight: 'bold' }}>Active Course Notebook:</span>
+                {notebooksList.map((nb) => (
+                  <button
+                    key={nb.id}
+                    onClick={() => setSelectedNotebookId(nb.id)}
+                    style={{
+                      background: activeNotebook?.id === nb.id ? '#38bdf8' : '#0f172a',
+                      color: activeNotebook?.id === nb.id ? '#000' : '#f8fafc',
+                      border: '1px solid #334155',
+                      padding: '8px 14px',
+                      borderRadius: '8px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '13px'
+                    }}
+                  >
+                    📘 {nb.course}: {nb.title}
+                  </button>
                 ))}
               </div>
-              <button onClick={() => setCgpaCourses([...cgpaCourses, { name: `Course ${cgpaCourses.length + 1}`, credit: 3, gpa: 4.0 }])} style={{ width: '100%', background: '#334155', color: '#fff', border: 'none', padding: '8px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold' }}>
-                + Add Another Course
-              </button>
+
+              {/* Active NotebookLM Workspace View */}
+              {activeNotebook && (
+                <div style={{ background: '#0f172a', borderRadius: '14px', border: '1px solid #334155', padding: '20px', marginBottom: '20px' }}>
+                  
+                  {/* Notebook Top Info & Audio Overview Player */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: '18px', paddingBottom: '14px', borderBottom: '1px solid #1e293b' }}>
+                    <div>
+                      <span style={{ background: '#3b82f6', color: '#fff', padding: '3px 8px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}>
+                        {activeNotebook.course}
+                      </span>
+                      <h4 style={{ margin: '8px 0 4px', fontSize: '18px', color: '#f8fafc' }}>{activeNotebook.title}</h4>
+                      <a href={activeNotebook.notebookUrl} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#38bdf8', textDecoration: 'underline' }}>
+                        {activeNotebook.notebookUrl}
+                      </a>
+                    </div>
+
+                    {/* Audio Overview (Deep Dive Podcast) Box */}
+                    <div style={{ background: '#1e293b', padding: '12px 16px', borderRadius: '12px', border: '1px solid #475569', minWidth: '270px' }}>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#c084fc', marginBottom: '6px' }}>
+                        🎧 NotebookLM Audio Overview (AI Podcast)
+                      </div>
+                      {activeNotebook.audioOverviewUrl ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          <audio controls src={activeNotebook.audioOverviewUrl} style={{ width: '100%', height: '32px' }} />
+                          <a href={activeNotebook.audioOverviewUrl} target="_blank" rel="noreferrer" style={{ fontSize: '11px', color: '#38bdf8' }}>
+                            Open External Audio Stream ↗
+                          </a>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '12px', color: '#94a3b8' }}>Generate or listen in NotebookLM Studio</span>
+                          <a
+                            href={activeNotebook.notebookUrl}
+                            target="_blank"
+                            rel="noreferrer"
+                            style={{ background: '#8b5cf6', color: '#fff', textDecoration: 'none', padding: '5px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 'bold' }}
+                          >
+                            🎧 Listen ↗
+                          </a>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* NotebookLM Facility Sub-Navigation */}
+                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginBottom: '18px' }}>
+                    {[
+                      { id: 'guide', label: '📝 Study Guide & Briefing Doc' },
+                      { id: 'sources', label: `📄 Source Grounding (${(activeNotebook.sources || []).length})` },
+                      { id: 'flashcards', label: `🃏 3D Study Flashcards (${(activeNotebook.flashcards || []).length})` },
+                      { id: 'faq', label: `❓ Generated FAQs (${(activeNotebook.faqs || []).length})` },
+                      { id: 'chat', label: '💬 AI Query & Prompt Launcher' }
+                    ].map((sub) => (
+                      <button
+                        key={sub.id}
+                        onClick={() => setNbStudioTab(sub.id)}
+                        style={{
+                          background: nbStudioTab === sub.id ? '#2563eb' : '#1e293b',
+                          color: '#fff',
+                          border: '1px solid #334155',
+                          padding: '8px 14px',
+                          borderRadius: '8px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: nbStudioTab === sub.id ? 'bold' : 'normal'
+                        }}
+                      >
+                        {sub.label}
+                      </button>
+                    ))}
+
+                    {canEdit && (
+                      <div style={{ marginLeft: 'auto', display: 'flex', gap: '6px' }}>
+                        <button
+                          onClick={() => startEditNotebook(activeNotebook)}
+                          style={{ background: '#eab308', color: '#000', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer', fontWeight: 'bold' }}
+                        >
+                          ✏️ Edit Notebook
+                        </button>
+                        <button
+                          onClick={() => handleDeleteNotebook(activeNotebook.id)}
+                          style={{ background: '#dc2626', color: '#fff', border: 'none', padding: '6px 12px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          🗑️
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* FACILITY 1: STUDY GUIDE & BRIEFING SUMMARY */}
+                  {nbStudioTab === 'guide' && (
+                    <div style={{ background: '#1e293b', padding: '18px', borderRadius: '10px', border: '1px solid #334155' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <h4 style={{ margin: 0, color: '#38bdf8' }}>📌 NotebookLM Briefing Doc & Executive Summary</h4>
+                        <button
+                          onClick={() => shareToWhatsApp(`${activeNotebook.course} Study Guide`, activeNotebook.summary)}
+                          style={{ background: '#059669', color: '#fff', border: 'none', padding: '5px 10px', borderRadius: '6px', fontSize: '12px', cursor: 'pointer' }}
+                        >
+                          📲 Share Summary
+                        </button>
+                      </div>
+                      <p style={{ margin: 0, lineHeight: 1.7, whiteSpace: 'pre-wrap', fontSize: '14px', color: '#e2e8f0' }}>
+                        {activeNotebook.summary}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* FACILITY 2: SOURCE GROUNDING VAULT (PDFs, Docs, Links, YouTube) */}
+                  {nbStudioTab === 'sources' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {canEdit && (
+                        <form onSubmit={handleAddNotebookSource} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', background: '#1e293b', padding: '12px', borderRadius: '10px' }}>
+                          <input
+                            value={srcTitle}
+                            onChange={(e) => setSrcTitle(e.target.value)}
+                            placeholder="Source Name (e.g. Chapter 4 PDF or YouTube Lecture)"
+                            required
+                            style={{ flex: 1, minWidth: '180px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                          />
+                          <select
+                            value={srcType}
+                            onChange={(e) => setSrcType(e.target.value)}
+                            style={{ background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                          >
+                            <option value="PDF">📄 PDF Document</option>
+                            <option value="Google Doc">📝 Google Doc / Slide</option>
+                            <option value="YouTube">▶️ YouTube Video</option>
+                            <option value="Web Link">🌐 Website URL</option>
+                          </select>
+                          <input
+                            value={srcUrl}
+                            onChange={(e) => setSrcUrl(e.target.value)}
+                            placeholder="Direct Source or NotebookLM Link..."
+                            style={{ flex: 1, minWidth: '180px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                          />
+                          <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+                            + Add Source
+                          </button>
+                        </form>
+                      )}
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: '12px' }}>
+                        {(activeNotebook.sources || []).map((s) => (
+                          <div key={s.id} style={{ background: '#1e293b', padding: '12px', borderRadius: '10px', border: '1px solid #334155', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                            <div>
+                              <span style={{ fontSize: '11px', color: '#38bdf8', fontWeight: 'bold' }}>{s.type}</span>
+                              <div style={{ fontSize: '14px', fontWeight: 'bold', margin: '4px 0' }}>{s.title}</div>
+                              <a href={s.url} target="_blank" rel="noreferrer" style={{ fontSize: '12px', color: '#10b981', textDecoration: 'none', fontWeight: 'bold' }}>
+                                Open Source ↗
+                              </a>
+                            </div>
+                            {canEdit && (
+                              <button onClick={() => handleDeleteNotebookSource(s.id)} style={{ background: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '15px' }}>
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* FACILITY 3: INTERACTIVE 3D FLIP FLASHCARDS */}
+                  {nbStudioTab === 'flashcards' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      {canEdit && (
+                        <form onSubmit={handleAddFlashcard} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', background: '#1e293b', padding: '12px', borderRadius: '10px' }}>
+                          <input
+                            value={fcQuestion}
+                            onChange={(e) => setFcQuestion(e.target.value)}
+                            placeholder="Front: Question / Term / Formula..."
+                            required
+                            style={{ flex: 1, minWidth: '200px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                          />
+                          <input
+                            value={fcAnswer}
+                            onChange={(e) => setFcAnswer(e.target.value)}
+                            placeholder="Back: Answer / Explanation..."
+                            required
+                            style={{ flex: 1, minWidth: '200px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                          />
+                          <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+                            + Add Flashcard
+                          </button>
+                        </form>
+                      )}
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(270px, 1fr))', gap: '14px' }}>
+                        {(activeNotebook.flashcards || []).map((card) => {
+                          const isFlipped = !!flippedCards[card.id];
+                          return (
+                            <div
+                              key={card.id}
+                              onClick={() => setFlippedCards({ ...flippedCards, [card.id]: !isFlipped })}
+                              style={{
+                                background: isFlipped ? 'linear-gradient(135deg, #065f46, #0f172a)' : 'linear-gradient(135deg, #1e293b, #0f172a)',
+                                border: isFlipped ? '1px solid #10b981' : '1px solid #38bdf8',
+                                borderRadius: '12px',
+                                padding: '18px',
+                                minHeight: '120px',
+                                cursor: 'pointer',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                transition: 'all 0.25s ease'
+                              }}
+                            >
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <span style={{ fontSize: '11px', fontWeight: 'bold', color: isFlipped ? '#4ade80' : '#38bdf8' }}>
+                                  {isFlipped ? '💡 ANSWER (Click to Flip)' : '❓ QUESTION (Click to Reveal)'}
+                                </span>
+                                {canEdit && (
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); handleDeleteFlashcard(card.id); }}
+                                    style={{ background: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer', fontSize: '13px' }}
+                                  >
+                                    🗑️
+                                  </button>
+                                )}
+                              </div>
+                              <div style={{ fontSize: '15px', fontWeight: '500', margin: '12px 0', color: '#f8fafc', lineHeight: 1.5 }}>
+                                {isFlipped ? card.answer : card.question}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* FACILITY 4: GENERATED FAQs */}
+                  {nbStudioTab === 'faq' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                      {canEdit && (
+                        <form onSubmit={handleAddFaq} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', background: '#1e293b', padding: '12px', borderRadius: '10px' }}>
+                          <input
+                            value={faqQ}
+                            onChange={(e) => setFaqQ(e.target.value)}
+                            placeholder="Frequently Asked Question..."
+                            required
+                            style={{ flex: 1, minWidth: '200px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                          />
+                          <input
+                            value={faqA}
+                            onChange={(e) => setFaqA(e.target.value)}
+                            placeholder="Detailed Answer..."
+                            required
+                            style={{ flex: 1, minWidth: '200px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '8px', borderRadius: '6px', fontSize: '13px' }}
+                          />
+                          <button type="submit" style={{ background: '#10b981', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+                            + Add FAQ
+                          </button>
+                        </form>
+                      )}
+
+                      {(activeNotebook.faqs || []).map((f) => (
+                        <div key={f.id} style={{ background: '#1e293b', padding: '14px', borderRadius: '10px', border: '1px solid #334155' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                            <strong style={{ color: '#38bdf8', fontSize: '14px' }}>Q: {f.q}</strong>
+                            {canEdit && (
+                              <button onClick={() => handleDeleteFaq(f.id)} style={{ background: 'transparent', color: '#ef4444', border: 'none', cursor: 'pointer' }}>
+                                ✕
+                              </button>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '13px', color: '#cbd5e1', lineHeight: 1.5 }}>A: {f.a}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* FACILITY 5: AI QUERY & ONE-CLICK NOTEBOOKLM PROMPT LAUNCHER */}
+                  {nbStudioTab === 'chat' && (
+                    <div style={{ background: '#1e293b', padding: '18px', borderRadius: '10px', border: '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <h4 style={{ margin: 0, color: '#38bdf8' }}>🤖 Ask NotebookLM AI Grounded Assistant</h4>
+                      <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>
+                        Write your question or select a smart academic prompt below. Clicking launch will automatically copy your prompt and open your linked Google NotebookLM workspace!
+                      </p>
+
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <input
+                          value={nbPromptQuery}
+                          onChange={(e) => setNbPromptQuery(e.target.value)}
+                          placeholder={`Ask anything about ${activeNotebook.course} sources...`}
+                          style={{ flex: 1, minWidth: '220px', background: '#0f172a', color: '#fff', border: '1px solid #475569', padding: '10px 12px', borderRadius: '8px', fontSize: '14px' }}
+                        />
+                        <button
+                          onClick={() => copyPromptAndLaunchNotebookLM(nbPromptQuery, activeNotebook.notebookUrl)}
+                          style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}
+                        >
+                          🚀 Copy Question & Ask in NotebookLM ↗
+                        </button>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', marginTop: '4px' }}>
+                        {[
+                          'Generate a comprehensive Midterm Study Guide from all uploaded sources.',
+                          'Create 10 high-yield Viva & Short Questions with step-by-step answers.',
+                          'Explain the most complex mathematical derivations in simple terms with examples.',
+                          'Summarize key formulas and create a quick revision cheat-sheet.'
+                        ].map((preset, idx) => (
+                          <button
+                            key={idx}
+                            onClick={() => copyPromptAndLaunchNotebookLM(preset, activeNotebook.notebookUrl)}
+                            style={{ background: '#0f172a', color: '#cbd5e1', border: '1px solid #334155', padding: '8px 12px', borderRadius: '8px', cursor: 'pointer', fontSize: '12px', textAlign: 'left' }}
+                          >
+                            ⚡ "{preset}"
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              )}
+
+              {/* Admin / Editor Form: Create or Edit Linked Course Notebook */}
+              {canEdit && (
+                <form onSubmit={handleSaveNotebook} style={{ background: '#0f172a', padding: '18px', borderRadius: '12px', border: editingNotebookId ? '2px solid #eab308' : '1px solid #334155', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <h4 style={{ margin: 0, color: editingNotebookId ? '#eab308' : '#10b981', fontSize: '15px' }}>
+                      {editingNotebookId ? '✏️ Edit Linked NotebookLM Workspace' : '➕ Link New Course NotebookLM Workspace'}
+                    </h4>
+                    {editingNotebookId && (
+                      <button
+                        type="button"
+                        onClick={() => { setEditingNotebookId(null); setNbCourse(''); setNbTitle(''); setNbUrl('https://notebooklm.google.com/'); setNbAudioUrl(''); setNbSummary(''); }}
+                        style={{ background: '#475569', color: '#fff', border: 'none', padding: '4px 10px', borderRadius: '6px', cursor: 'pointer', fontSize: '12px' }}
+                      >
+                        Cancel Edit
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
+                    <input value={nbCourse} onChange={(e) => setNbCourse(e.target.value)} placeholder="Course Code (e.g. CSE-201)" required style={{ background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '9px', borderRadius: '6px', fontSize: '13px' }} />
+                    <input value={nbTitle} onChange={(e) => setNbTitle(e.target.value)} placeholder="Notebook Title (e.g. Data Structures AI Hub)" required style={{ background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '9px', borderRadius: '6px', fontSize: '13px' }} />
+                    <input value={nbUrl} onChange={(e) => setNbUrl(e.target.value)} placeholder="Shared NotebookLM URL (https://notebooklm.google.com/...)" style={{ background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '9px', borderRadius: '6px', fontSize: '13px' }} />
+                    <input value={nbAudioUrl} onChange={(e) => setNbAudioUrl(e.target.value)} placeholder="Audio Overview MP3/Drive Link (Optional)" style={{ background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '9px', borderRadius: '6px', fontSize: '13px' }} />
+                  </div>
+
+                  <textarea
+                    rows={3}
+                    value={nbSummary}
+                    onChange={(e) => setNbSummary(e.target.value)}
+                    placeholder="Paste NotebookLM AI Study Guide / Key Takeaways / Briefing Summary here..."
+                    style={{ background: '#1e293b', color: '#fff', border: '1px solid #475569', padding: '10px', borderRadius: '6px', fontSize: '13px' }}
+                  />
+
+                  <button type="submit" style={{ alignSelf: 'flex-start', background: editingNotebookId ? '#eab308' : '#10b981', color: editingNotebookId ? '#000' : '#fff', border: 'none', padding: '9px 18px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
+                    {editingNotebookId ? '💾 Update NotebookLM Hub' : '+ Add & Link NotebookLM'}
+                  </button>
+                </form>
+              )}
+
             </div>
+
           </div>
         )}
 
@@ -1460,7 +2099,6 @@ export default function App() {
                   </div>
                   <p style={{ margin: '0 0 12px', fontSize: '15px' }}>{post.text}</p>
 
-                  {/* Replies */}
                   <div style={{ paddingLeft: '16px', borderLeft: '2px solid #334155', display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '10px' }}>
                     {(post.replies || []).map((rep) => (
                       <div key={rep.id} style={{ fontSize: '13px', background: '#1e293b', padding: '8px 12px', borderRadius: '6px' }}>
@@ -1469,7 +2107,6 @@ export default function App() {
                     ))}
                   </div>
 
-                  {/* Reply Input */}
                   <div style={{ display: 'flex', gap: '8px' }}>
                     <input
                       value={replyTexts[post.id] || ''}
@@ -1545,11 +2182,10 @@ export default function App() {
         {activeTab === 'admin' && isAdmin && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             
-            {/* One-Click JSON Backup & Restore */}
             <div style={{ background: '#1e293b', padding: '18px', borderRadius: '12px', border: '1px solid #10b981', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
               <div>
                 <h3 style={{ margin: '0 0 4px', color: '#10b981', fontSize: '16px' }}>☁️ One-Click Data Backup & Restore (JSON)</h3>
-                <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Download a full backup of all materials, exams, and notices, or restore from a JSON file anytime.</p>
+                <p style={{ margin: 0, fontSize: '13px', color: '#94a3b8' }}>Download a full backup of all materials, exams, NotebookLM data, and notices, or restore anytime.</p>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button onClick={handleExportJSON} style={{ background: '#059669', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '8px', cursor: 'pointer', fontWeight: 'bold', fontSize: '13px' }}>
@@ -1562,7 +2198,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Create New User Form */}
             <form onSubmit={handleCreateUser} style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
               <h3 style={{ margin: '0 0 14px', fontSize: '16px', color: '#38bdf8' }}>👤 Create Student / Collaborator Account</h3>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '14px' }}>
@@ -1580,7 +2215,6 @@ export default function App() {
               </button>
             </form>
 
-            {/* User List with Role Edit, Password Reset & Delete */}
             <div style={{ background: '#1e293b', padding: '20px', borderRadius: '12px', border: '1px solid #334155' }}>
               <h3 style={{ margin: '0 0 14px', fontSize: '16px' }}>👥 Registered Users ({usersList.length})</h3>
               <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
